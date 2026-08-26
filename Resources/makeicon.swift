@@ -1,7 +1,7 @@
 import AppKit
 
-// Renders Careful.icns. The mark is a padlock on a dark squircle, matching the
-// lock glyph used in the menu bar and the palette of the block page.
+// Renders Careful.icns. The mark is a padlock on a lime squircle, matching the
+// lock glyph used in the menu bar.
 func render(size: Int) -> Data {
     let s = CGFloat(size)
     let rep = NSBitmapImageRep(
