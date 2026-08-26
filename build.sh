@@ -23,6 +23,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleShortVersionString</key><string>1.0</string>
   <key>CFBundleVersion</key><string>1</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
+  <key>CFBundleIconName</key><string>AppIcon</string>
   <!-- Accessory app: no Dock tile, no Cmd-Q, and no entry in Force Quit Applications. -->
   <key>LSUIElement</key><true/>
   <key>NSAppleEventsUsageDescription</key>
@@ -32,6 +34,15 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </dict>
 </plist>
 PLIST
+
+echo "==> Compiling asset catalog"
+# macOS 26 gives bare .icns files a generic light plate. Shipping a compiled
+# asset catalog gets the icon treated as a modern app icon instead.
+xcrun actool "$ROOT/Resources/Vise.xcassets" \
+  --compile "$APP/Contents/Resources" \
+  --platform macosx --minimum-deployment-target 13.0 \
+  --app-icon AppIcon \
+  --output-partial-info-plist "$BUILD/partial.plist" >/dev/null
 
 echo "==> Compiling Vise"
 swiftc -O -swift-version 5 \

@@ -112,6 +112,21 @@ rm -f ~/Library/LaunchAgents/com.alexandermontague.vise.plist
 rm -rf ~/Library/Application\ Support/Vise
 ```
 
+## Icon
+
+`Resources/makeicon.swift` draws the icon and `build.sh` compiles it into an asset
+catalog. To change it, edit the renderer and rebuild:
+
+```
+swift Resources/makeicon.swift /tmp/Vise.iconset
+cp /tmp/Vise.iconset/*.png Resources/Vise.xcassets/AppIcon.appiconset/
+./build.sh && ./install.sh
+```
+
+macOS 26 draws a light plate behind any app icon not shipped in the new Icon Composer
+`.icon` format. That affects most third-party apps right now (Ghostty included), and is
+cosmetic.
+
 ## Credit
 
 The browser abstraction is adapted from [appjail](https://github.com/devsemih/appjail) (MIT),
