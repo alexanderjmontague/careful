@@ -152,7 +152,12 @@ final class Enforcer: ObservableObject {
             }
             DispatchQueue.main.async {
                 self?.scriptBusy = false
-                if let last = events.last { self?.note(last) }
+                // Report every distinct block, not just the last one, or a sweep that
+                // catches two sites only ever admits to one.
+                var seen = Set<String>()
+                for event in events where seen.insert(event).inserted {
+                    self?.note(event)
+                }
             }
         }
     }

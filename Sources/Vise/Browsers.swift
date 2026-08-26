@@ -10,12 +10,20 @@ enum AppleScriptRunner {
         if let error {
             let code = error[NSAppleScript.errorNumber] as? Int ?? 0
             // -600 (app not running) and -1728 (no such object) are normal races, not failures.
-            if code != -600 && code != -1728 && code != -609 {
+            if code != -600 && code != -1728 && code != -609 && code != -1719 {
                 vlog("AppleScript error \(code): \(error[NSAppleScript.errorMessage] ?? "?")")
             }
             return nil
         }
         return result.stringValue
+    }
+}
+
+enum AppleScriptString {
+    /// URLs are interpolated into AppleScript source, so quotes and backslashes must be escaped.
+    static func quote(_ value: String) -> String {
+        value.replacingOccurrences(of: "\\", with: "\\\\")
+             .replacingOccurrences(of: "\"", with: "\\\"")
     }
 }
 
@@ -55,9 +63,18 @@ struct ChromiumBrowser: Browser {
     }
 
     func redirect(_ ref: TabRef, to destination: String) {
+        // Tabs are addressed by index, and an index goes stale the moment any tab closes.
+        // Re-check the URL inside the same script so a shifted index cannot redirect
+        // an innocent tab to the block page.
         AppleScriptRunner.run("""
         tell application "\(scriptName)"
-            set URL of tab \(ref.tab) of window \(ref.window) to "\(destination)"
+            if (count of windows) is greater than or equal to \(ref.window) then
+                if (count of tabs of window \(ref.window)) is greater than or equal to \(ref.tab) then
+                    if (URL of tab \(ref.tab) of window \(ref.window)) is "\(AppleScriptString.quote(ref.url))" then
+                        set URL of tab \(ref.tab) of window \(ref.window) to "\(destination)"
+                    end if
+                end if
+            end if
         end tell
         """)
     }
@@ -95,7 +112,13 @@ struct SafariBrowser: Browser {
     func redirect(_ ref: TabRef, to destination: String) {
         AppleScriptRunner.run("""
         tell application "Safari"
-            set URL of tab \(ref.tab) of window \(ref.window) to "\(destination)"
+            if (count of windows) is greater than or equal to \(ref.window) then
+                if (count of tabs of window \(ref.window)) is greater than or equal to \(ref.tab) then
+                    if (URL of tab \(ref.tab) of window \(ref.window)) is "\(AppleScriptString.quote(ref.url))" then
+                        set URL of tab \(ref.tab) of window \(ref.window) to "\(destination)"
+                    end if
+                end if
+            end if
         end tell
         """)
     }
