@@ -14,7 +14,7 @@ final class Enforcer: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
 
     /// AppleScript is not thread-safe and is slow enough to stutter the UI; keep it off the main thread.
-    private let scriptQueue = DispatchQueue(label: "com.alexandermontague.vise.applescript", qos: .utility)
+    private let scriptQueue = DispatchQueue(label: "com.alexandermontague.careful.applescript", qos: .utility)
     private var scriptBusy = false
 
     /// Apps that must never be terminated, whatever the blocklist says.

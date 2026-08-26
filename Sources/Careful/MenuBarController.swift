@@ -32,7 +32,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let symbol: String
         if store.config.onBreak { symbol = "cup.and.saucer.fill" }
         else { symbol = enforcing ? "lock.fill" : "lock.open" }
-        button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: "Vise")
+        button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: "Careful")
         button.image?.isTemplate = true
 
         if let breakLeft = store.config.breakRemaining() {
@@ -125,9 +125,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         settings.target = self
         menu.addItem(settings)
 
-        // Quit is withheld while a block runs; `visectl quit` remains the deliberate way out.
+        // Quit is withheld while a block runs; `carefulctl quit` remains the deliberate way out.
         if reason == nil {
-            let quit = NSMenuItem(title: "Quit Vise", action: #selector(quitApp), keyEquivalent: "q")
+            let quit = NSMenuItem(title: "Quit Careful", action: #selector(quitApp), keyEquivalent: "q")
             quit.target = self
             menu.addItem(quit)
         }
@@ -178,7 +178,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let view = SettingsView(store: store)
         let hosting = NSHostingController(rootView: view)
         let window = NSWindow(contentViewController: hosting)
-        window.title = "Vise"
+        window.title = "Careful"
         window.styleMask = [.titled, .closable, .miniaturizable]
         window.setContentSize(NSSize(width: 620, height: 520))
         window.center()

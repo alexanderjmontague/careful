@@ -4,10 +4,10 @@ import Foundation
 // Kept as a separate binary so it can be driven from a shell (and therefore from Claude Code).
 
 let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-    .appendingPathComponent("Vise", isDirectory: true)
+    .appendingPathComponent("Careful", isDirectory: true)
 let stateURL = supportDir.appendingPathComponent("state.json")
 let commandURL = supportDir.appendingPathComponent("command")
-let agentLabel = "com.alexandermontague.vise"
+let agentLabel = "com.alexandermontague.careful"
 
 func send(_ command: String) {
     try? FileManager.default.createDirectory(at: supportDir, withIntermediateDirectories: true)
@@ -35,28 +35,28 @@ func shell(_ launchPath: String, _ arguments: [String]) -> Int32 {
 }
 
 func isRunning() -> Bool {
-    shell("/usr/bin/pgrep", ["-x", "Vise"]) == 0
+    shell("/usr/bin/pgrep", ["-x", "Careful"]) == 0
 }
 
 let usage = """
-visectl — control Vise
+carefulctl — control Careful
 
-  visectl status              show whether a block is running
-  visectl start <minutes>     start a timed block
-  visectl stop                end the current block (works even when locked)
-  visectl always on|off       toggle the open-ended block
-  visectl break               take a break, if one is due
-  visectl break end           end the current break early
-  visectl block <domain>      add a website to the blocklist
-  visectl unblock <domain>    remove a website from the blocklist
-  visectl block-app <id>      add an app by bundle identifier
-  visectl unblock-app <id>    remove an app by bundle identifier
-  visectl list                show the current blocklists
-  visectl set <key> <value>   break-minutes | break-interval | strict on|off
-  visectl reload              re-read config.json from disk
-  visectl quit                stop the block, unload the agent, and quit the app
-  visectl launch              load the agent and start the app again
-  visectl log [n]             show the last n log lines (default 40)
+  carefulctl status              show whether a block is running
+  carefulctl start <minutes>     start a timed block
+  carefulctl stop                end the current block (works even when locked)
+  carefulctl always on|off       toggle the open-ended block
+  carefulctl break               take a break, if one is due
+  carefulctl break end           end the current break early
+  carefulctl block <domain>      add a website to the blocklist
+  carefulctl unblock <domain>    remove a website from the blocklist
+  carefulctl block-app <id>      add an app by bundle identifier
+  carefulctl unblock-app <id>    remove an app by bundle identifier
+  carefulctl list                show the current blocklists
+  carefulctl set <key> <value>   break-minutes | break-interval | strict on|off
+  carefulctl reload              re-read config.json from disk
+  carefulctl quit                stop the block, unload the agent, and quit the app
+  carefulctl launch              load the agent and start the app again
+  carefulctl log [n]             show the last n log lines (default 40)
 """
 
 let args = Array(CommandLine.arguments.dropFirst())
@@ -69,11 +69,11 @@ switch verb {
 case "status":
     let state = readState()
     guard !state.isEmpty else {
-        print("Vise: no state file — the app has not run yet.")
+        print("Careful: no state file — the app has not run yet.")
         exit(1)
     }
     let enforcing = state["enforcing"] as? Bool ?? false
-    print("Vise:      \(isRunning() ? "running" : "not running")")
+    print("Careful:   \(isRunning() ? "running" : "not running")")
     print("Blocking:  \(enforcing ? "yes" : "no")")
     if let reason = state["reason"] as? String, !reason.isEmpty {
         print("Reason:    \(reason)")
@@ -95,65 +95,65 @@ case "status":
 case "start":
     let minutes = args.count > 1 ? (Int(args[1]) ?? 30) : 30
     send("start \(minutes)")
-    print("Vise: blocking for \(minutes) minutes.")
+    print("Careful: blocking for \(minutes) minutes.")
 
 case "stop":
     send("stop")
-    print("Vise: block stopped.")
+    print("Careful: block stopped.")
 
 case "always":
     let value = args.count > 1 ? args[1].lowercased() : "on"
     guard value == "on" || value == "off" else {
-        print("usage: visectl always on|off")
+        print("usage: carefulctl always on|off")
         exit(1)
     }
     send("always \(value)")
-    print("Vise: always-on \(value).")
+    print("Careful: always-on \(value).")
 
 case "break":
     let sub = args.count > 1 ? args[1].lowercased() : "start"
     if sub == "end" {
         send("break end")
-        print("Vise: break ended.")
+        print("Careful: break ended.")
     } else {
         let state = readState()
         if state["onBreak"] as? Bool == true {
-            print("Vise: already on a break.")
+            print("Careful: already on a break.")
         } else if let wait = state["breakAvailableInSeconds"] as? Int {
-            print("Vise: no break due yet — next one in \(wait / 3600)h \((wait % 3600) / 60)m.")
+            print("Careful: no break due yet — next one in \(wait / 3600)h \((wait % 3600) / 60)m.")
             exit(1)
         } else if state["enforcing"] as? Bool != true, state["onBreak"] as? Bool != true {
-            print("Vise: nothing is blocked, so there is nothing to take a break from.")
+            print("Careful: nothing is blocked, so there is nothing to take a break from.")
             exit(1)
         } else {
             send("break")
-            print("Vise: break started.")
+            print("Careful: break started.")
         }
     }
 
 case "block":
-    guard args.count > 1 else { print("usage: visectl block <domain>"); exit(1) }
+    guard args.count > 1 else { print("usage: carefulctl block <domain>"); exit(1) }
     let site = args[1].lowercased()
         .replacingOccurrences(of: "https://", with: "")
         .replacingOccurrences(of: "http://", with: "")
         .replacingOccurrences(of: "www.", with: "")
     send("block-site \(site)")
-    print("Vise: blocking \(site).")
+    print("Careful: blocking \(site).")
 
 case "unblock":
-    guard args.count > 1 else { print("usage: visectl unblock <domain>"); exit(1) }
+    guard args.count > 1 else { print("usage: carefulctl unblock <domain>"); exit(1) }
     send("unblock-site \(args[1].lowercased())")
-    print("Vise: unblocked \(args[1].lowercased()).")
+    print("Careful: unblocked \(args[1].lowercased()).")
 
 case "block-app":
-    guard args.count > 1 else { print("usage: visectl block-app <bundle-id>"); exit(1) }
+    guard args.count > 1 else { print("usage: carefulctl block-app <bundle-id>"); exit(1) }
     send("block-app \(args[1])")
-    print("Vise: blocking \(args[1]).")
+    print("Careful: blocking \(args[1]).")
 
 case "unblock-app":
-    guard args.count > 1 else { print("usage: visectl unblock-app <bundle-id>"); exit(1) }
+    guard args.count > 1 else { print("usage: carefulctl unblock-app <bundle-id>"); exit(1) }
     send("unblock-app \(args[1])")
-    print("Vise: unblocked \(args[1]).")
+    print("Careful: unblocked \(args[1]).")
 
 case "list":
     let configURL = supportDir.appendingPathComponent("config.json")
@@ -169,7 +169,7 @@ case "list":
 
 case "set":
     guard args.count > 2 else {
-        print("usage: visectl set break-minutes|break-interval|strict <value>")
+        print("usage: carefulctl set break-minutes|break-interval|strict <value>")
         exit(1)
     }
     let key = args[1].lowercased()
@@ -178,11 +178,11 @@ case "set":
     case "break-minutes", "break-interval":
         guard let n = Int(value), n > 0 else { print("Value must be a positive number."); exit(1) }
         send("set \(key) \(n)")
-        print("Vise: \(key) = \(n).")
+        print("Careful: \(key) = \(n).")
     case "strict":
-        guard value == "on" || value == "off" else { print("usage: visectl set strict on|off"); exit(1) }
+        guard value == "on" || value == "off" else { print("usage: carefulctl set strict on|off"); exit(1) }
         send("set strict \(value)")
-        print("Vise: strict mode \(value).")
+        print("Careful: strict mode \(value).")
     default:
         print("Unknown key: \(key)")
         exit(1)
@@ -190,7 +190,7 @@ case "set":
 
 case "reload":
     send("reload")
-    print("Vise: config reloaded from disk.")
+    print("Careful: config reloaded from disk.")
 
 case "quit":
     send("stop")
@@ -199,10 +199,10 @@ case "quit":
     let uid = getuid()
     shell("/bin/launchctl", ["bootout", "gui/\(uid)/\(agentLabel)"])
     Thread.sleep(forTimeInterval: 0.3)
-    shell("/usr/bin/pkill", ["-x", "Vise"])
+    shell("/usr/bin/pkill", ["-x", "Careful"])
     // Leave no command behind: a stale "quit" would kill the next instance on launch.
     try? FileManager.default.removeItem(at: commandURL)
-    print("Vise: stopped and unloaded. Run `visectl launch` to bring it back.")
+    print("Careful: stopped and unloaded. Run `carefulctl launch` to bring it back.")
 
 case "launch":
     let uid = getuid()
@@ -211,11 +211,11 @@ case "launch":
     let plist = NSHomeDirectory() + "/Library/LaunchAgents/\(agentLabel).plist"
     shell("/bin/launchctl", ["bootstrap", "gui/\(uid)", plist])
     shell("/bin/launchctl", ["kickstart", "-k", "gui/\(uid)/\(agentLabel)"])
-    print("Vise: agent loaded.")
+    print("Careful: agent loaded.")
 
 case "log":
     let count = args.count > 1 ? (Int(args[1]) ?? 40) : 40
-    let logURL = supportDir.appendingPathComponent("vise.log")
+    let logURL = supportDir.appendingPathComponent("careful.log")
     guard let text = try? String(contentsOf: logURL, encoding: .utf8) else {
         print("No log yet at \(logURL.path)")
         exit(1)

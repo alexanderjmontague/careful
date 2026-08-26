@@ -1,12 +1,12 @@
 import Foundation
 
 enum Paths {
-    static let bundleID = "com.alexandermontague.vise"
-    static let agentLabel = "com.alexandermontague.vise"
+    static let bundleID = "com.alexandermontague.careful"
+    static let agentLabel = "com.alexandermontague.careful"
 
     static var support: URL = {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Vise", isDirectory: true)
+            .appendingPathComponent("Careful", isDirectory: true)
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         return base
     }()
@@ -15,7 +15,7 @@ enum Paths {
     static var state: URL { support.appendingPathComponent("state.json") }
     static var command: URL { support.appendingPathComponent("command") }
     static var blockPage: URL { support.appendingPathComponent("blocked.html") }
-    static var log: URL { support.appendingPathComponent("vise.log") }
+    static var log: URL { support.appendingPathComponent("careful.log") }
 }
 
 func vlog(_ message: String) {

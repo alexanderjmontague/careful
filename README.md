@@ -1,4 +1,4 @@
-# Vise
+# Careful
 
 A distraction blocker for macOS. Blocks apps and websites, and is deliberately hard to
 quit from the UI — but always quittable from the command line, so you can ask Claude Code
@@ -12,12 +12,12 @@ Built as a replacement for 1Focus, with first-class Dia support (1Focus has none
 ./build.sh && ./install.sh
 ```
 
-Installs `/Applications/Vise.app`, `/opt/homebrew/bin/visectl`, and a LaunchAgent at
-`~/Library/LaunchAgents/com.alexandermontague.vise.plist`. No password required.
+Installs `/Applications/Careful.app`, `/opt/homebrew/bin/carefulctl`, and a LaunchAgent at
+`~/Library/LaunchAgents/com.alexandermontague.careful.plist`. No password required.
 
-The first time Vise blocks a site in a given browser, macOS asks for permission.
+The first time Careful blocks a site in a given browser, macOS asks for permission.
 Approve it under **System Settings → Privacy & Security → Automation** (not Accessibility —
-Vise never appears there). Without it, website blocking silently does nothing.
+Careful never appears there). Without it, website blocking silently does nothing.
 
 ## How the anti-quit works
 
@@ -26,7 +26,7 @@ Three layers, none of which need root:
 | Layer | Effect |
 | --- | --- |
 | `LSUIElement` in Info.plist | No Dock icon, no Cmd-Q, and **no row in Force Quit Applications** — the same trick 1Focus uses |
-| `KeepAlive: true` in the LaunchAgent | launchd restarts Vise the instant it exits, including after `kill -9`. Verified: back in under 2s |
+| `KeepAlive: true` in the LaunchAgent | launchd restarts Careful the instant it exits, including after `kill -9`. Verified: back in under 2s |
 | `applicationShouldTerminate` returns `.terminateCancel` while locked | A clean quit is refused outright during a block |
 
 While a block is running the menu bar shows no Quit item and no working Stop item, and the
@@ -36,7 +36,7 @@ Settings window lets you add blocked apps and sites but not remove them.
 
 A break pauses blocking without ending the block — the timer or schedule keeps running
 underneath. Defaults to **10 minutes, once every 4 hours**, adjustable in Settings → Breaks
-or with `visectl set break-minutes 10` / `visectl set break-interval 4`.
+or with `carefulctl set break-minutes 10` / `carefulctl set break-interval 4`.
 
 The cooldown is measured from the **start** of the last break, so ending one early does not
 earn you another. Break state is written to disk, so killing the app does not reset the
@@ -44,28 +44,28 @@ cooldown either.
 
 ## The way out
 
-`visectl` ignores every lock. That is intentional — it is the door you keep the key to.
+`carefulctl` ignores every lock. That is intentional — it is the door you keep the key to.
 
 ```
-visectl status              is a block running, and how long is left
-visectl start 50            block for 50 minutes
-visectl stop                end the block, even when locked
-visectl always on|off       open-ended block
-visectl break               take a break, if one is due
-visectl break end           end the current break early
-visectl set <key> <value>   break-minutes | break-interval | strict on|off
-visectl reload              re-read config.json from disk
-visectl block <domain>      add a site
-visectl unblock <domain>    remove a site
-visectl block-app <id>      add an app by bundle id, e.g. com.spotify.client
-visectl unblock-app <id>    remove an app
-visectl list                show both blocklists
-visectl quit                stop the block, unload the agent, quit the app
-visectl launch              bring it back
-visectl log [n]             recent activity
+carefulctl status              is a block running, and how long is left
+carefulctl start 50            block for 50 minutes
+carefulctl stop                end the block, even when locked
+carefulctl always on|off       open-ended block
+carefulctl break               take a break, if one is due
+carefulctl break end           end the current break early
+carefulctl set <key> <value>   break-minutes | break-interval | strict on|off
+carefulctl reload              re-read config.json from disk
+carefulctl block <domain>      add a site
+carefulctl unblock <domain>    remove a site
+carefulctl block-app <id>      add an app by bundle id, e.g. com.spotify.client
+carefulctl unblock-app <id>    remove an app
+carefulctl list                show both blocklists
+carefulctl quit                stop the block, unload the agent, quit the app
+carefulctl launch              bring it back
+carefulctl log [n]             recent activity
 ```
 
-`visectl quit` is the full stop: it boots the LaunchAgent out first, so KeepAlive cannot
+`carefulctl quit` is the full stop: it boots the LaunchAgent out first, so KeepAlive cannot
 resurrect the process.
 
 ## How blocking works
@@ -85,9 +85,9 @@ A bare domain matches the host and its subdomains, so `twitter.com` catches
 
 ## Editing config by hand
 
-Don't. `~/Library/Application Support/Vise/config.json` is owned by the running app, which
+Don't. `~/Library/Application Support/Careful/config.json` is owned by the running app, which
 rewrites it whenever anything changes — a hand edit will usually lose the race and vanish.
-Use `visectl` instead, or `visectl reload` if you really must edit the file.
+Use `carefulctl` instead, or `carefulctl reload` if you really must edit the file.
 
 ## Limits, honestly
 
@@ -95,10 +95,10 @@ Use `visectl` instead, or `visectl reload` if you really must edit the file.
   are wired up and should work, but were not tested.
 - **Firefox and Zen cannot be supported** this way — no AppleScript tab access. Block the
   whole app instead.
-- **No network-level blocking.** Vise does not touch `/etc/hosts` or the firewall, so a
+- **No network-level blocking.** Careful does not touch `/etc/hosts` or the firewall, so a
   blocked site stays reachable in a non-scriptable browser or a native app. Block the app.
 - **There is a visible window of up to ~0.6s** before a blocked page is redirected.
-- **`visectl` has no auth.** Anyone at your terminal can stop a block. That is the design
+- **`carefulctl` has no auth.** Anyone at your terminal can stop a block. That is the design
   you asked for, not an oversight.
 - **Rebuilding invalidates permissions.** The app is ad-hoc signed, so its code signature
   changes on every build and macOS re-asks for Automation access. Install once and leave it.
@@ -106,10 +106,10 @@ Use `visectl` instead, or `visectl reload` if you really must edit the file.
 ## Uninstall
 
 ```
-launchctl bootout gui/$(id -u)/com.alexandermontague.vise
-rm -rf /Applications/Vise.app /opt/homebrew/bin/visectl
-rm -f ~/Library/LaunchAgents/com.alexandermontague.vise.plist
-rm -rf ~/Library/Application\ Support/Vise
+launchctl bootout gui/$(id -u)/com.alexandermontague.careful
+rm -rf /Applications/Careful.app /opt/homebrew/bin/carefulctl
+rm -f ~/Library/LaunchAgents/com.alexandermontague.careful.plist
+rm -rf ~/Library/Application\ Support/Careful
 ```
 
 ## Icon
@@ -118,8 +118,8 @@ rm -rf ~/Library/Application\ Support/Vise
 catalog. To change it, edit the renderer and rebuild:
 
 ```
-swift Resources/makeicon.swift /tmp/Vise.iconset
-cp /tmp/Vise.iconset/*.png Resources/Vise.xcassets/AppIcon.appiconset/
+swift Resources/makeicon.swift /tmp/Careful.iconset
+cp /tmp/Careful.iconset/*.png Resources/Careful.xcassets/AppIcon.appiconset/
 ./build.sh && ./install.sh
 ```
 

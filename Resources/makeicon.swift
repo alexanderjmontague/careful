@@ -1,6 +1,6 @@
 import AppKit
 
-// Renders Vise.icns. The mark is a padlock on a dark squircle, matching the
+// Renders Careful.icns. The mark is a padlock on a dark squircle, matching the
 // lock glyph used in the menu bar and the palette of the block page.
 func render(size: Int) -> Data {
     let s = CGFloat(size)

@@ -15,7 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         store.start()
         enforcer.start()
-        vlog("Vise started (pid \(ProcessInfo.processInfo.processIdentifier))")
+        vlog("Careful started (pid \(ProcessInfo.processInfo.processIdentifier))")
     }
 
     /// launchd will restart us anyway, but refuse a clean exit while a block is locked.
@@ -25,7 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         store.publishState(enforcing: false)
-        vlog("Vise stopped")
+        vlog("Careful stopped")
     }
 }
 
@@ -34,7 +34,7 @@ let running = NSWorkspace.shared.runningApplications.filter {
     $0.bundleIdentifier == Paths.bundleID && $0.processIdentifier != ProcessInfo.processInfo.processIdentifier
 }
 if !running.isEmpty {
-    vlog("Vise already running; exiting")
+    vlog("Careful already running; exiting")
     exit(0)
 }
 

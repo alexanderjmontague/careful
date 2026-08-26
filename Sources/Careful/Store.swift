@@ -1,7 +1,7 @@
 import Foundation
 import Combine
 
-/// Owns the config, mirrors status to disk for `visectl`, and executes commands it sends back.
+/// Owns the config, mirrors status to disk for `carefulctl`, and executes commands it sends back.
 final class Store: ObservableObject {
     @Published var config: Config {
         didSet { config.save() }
@@ -14,7 +14,7 @@ final class Store: ObservableObject {
     }
 
     func start() {
-        // visectl drops a one-line command file; poll for it rather than holding a socket open.
+        // carefulctl drops a one-line command file; poll for it rather than holding a socket open.
         commandTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             self?.drainCommands()
         }
@@ -99,38 +99,38 @@ final class Store: ObservableObject {
             switch verb {
             case "stop":
                 stopEverything()
-                vlog("visectl: stop")
+                vlog("carefulctl: stop")
             case "start":
                 let minutes = parts.count > 1 ? (Int(parts[1]) ?? 30) : 30
                 startTimer(minutes: minutes)
-                vlog("visectl: start \(minutes)m")
+                vlog("carefulctl: start \(minutes)m")
             case "always":
                 let on = parts.count > 1 && parts[1].lowercased() == "on"
                 config.alwaysOn = on
-                vlog("visectl: always \(on ? "on" : "off")")
+                vlog("carefulctl: always \(on ? "on" : "off")")
             case "block-site":
                 let site = parts.dropFirst().joined(separator: " ").lowercased()
                 if !site.isEmpty, !config.blockedSites.contains(site) {
                     config.blockedSites.append(site)
                 }
-                vlog("visectl: block-site \(site)")
+                vlog("carefulctl: block-site \(site)")
             case "unblock-site":
-                // visectl is the deliberate escape hatch, so it ignores strict mode.
+                // carefulctl is the deliberate escape hatch, so it ignores strict mode.
                 let site = parts.dropFirst().joined(separator: " ").lowercased()
                 config.blockedSites.removeAll { $0 == site }
-                vlog("visectl: unblock-site \(site)")
+                vlog("carefulctl: unblock-site \(site)")
             case "block-app":
                 if parts.count > 1 { config.blockedApps.insert(parts[1]) }
-                vlog("visectl: block-app \(parts.count > 1 ? parts[1] : "")")
+                vlog("carefulctl: block-app \(parts.count > 1 ? parts[1] : "")")
             case "unblock-app":
                 if parts.count > 1 { config.blockedApps.remove(parts[1]) }
-                vlog("visectl: unblock-app \(parts.count > 1 ? parts[1] : "")")
+                vlog("carefulctl: unblock-app \(parts.count > 1 ? parts[1] : "")")
             case "break":
                 let sub = parts.count > 1 ? parts[1].lowercased() : "start"
                 if sub == "end" {
                     endBreak()
                 } else if !startBreak() {
-                    vlog("visectl: break refused (not due, or nothing is blocked)")
+                    vlog("carefulctl: break refused (not due, or nothing is blocked)")
                 }
             case "set":
                 guard parts.count > 2 else { break }
@@ -143,16 +143,16 @@ final class Store: ObservableObject {
                     config.strictMode = parts[2].lowercased() == "on"
                 default: break
                 }
-                vlog("visectl: set \(parts[1]) \(parts[2])")
+                vlog("carefulctl: set \(parts[1]) \(parts[2])")
             case "reload":
                 config = Config.load()
-                vlog("visectl: reload")
+                vlog("carefulctl: reload")
             case "quit":
-                vlog("visectl: quit")
+                vlog("carefulctl: quit")
                 publishState(enforcing: false)
                 exit(0)
             default:
-                vlog("visectl: unknown command \(verb)")
+                vlog("carefulctl: unknown command \(verb)")
             }
         }
         publishState(enforcing: config.isEnforcing)
