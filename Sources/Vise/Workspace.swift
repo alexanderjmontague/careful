@@ -55,3 +55,25 @@ enum AppScanner {
         return apps.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 }
+
+/// Resolves a bundle identifier to a display name and icon, so blocked apps can be
+/// shown properly even when they were added from the command line.
+enum AppResolver {
+    static func url(for bundleID: String) -> URL? {
+        NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
+    }
+
+    static func name(for bundleID: String) -> String {
+        guard let url = url(for: bundleID), let bundle = Bundle(url: url) else { return bundleID }
+        return (bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
+            ?? (bundle.object(forInfoDictionaryKey: "CFBundleName") as? String)
+            ?? url.deletingPathExtension().lastPathComponent
+    }
+
+    static func icon(for bundleID: String) -> NSImage {
+        guard let url = url(for: bundleID) else {
+            return NSImage(systemSymbolName: "questionmark.app", accessibilityDescription: nil) ?? NSImage()
+        }
+        return NSWorkspace.shared.icon(forFile: url.path)
+    }
+}

@@ -45,11 +45,15 @@ visectl — control Vise
   visectl start <minutes>     start a timed block
   visectl stop                end the current block (works even when locked)
   visectl always on|off       toggle the open-ended block
+  visectl break               take a break, if one is due
+  visectl break end           end the current break early
   visectl block <domain>      add a website to the blocklist
   visectl unblock <domain>    remove a website from the blocklist
   visectl block-app <id>      add an app by bundle identifier
   visectl unblock-app <id>    remove an app by bundle identifier
   visectl list                show the current blocklists
+  visectl set <key> <value>   break-minutes | break-interval | strict on|off
+  visectl reload              re-read config.json from disk
   visectl quit                stop the block, unload the agent, and quit the app
   visectl launch              load the agent and start the app again
   visectl log [n]             show the last n log lines (default 40)
@@ -80,6 +84,13 @@ case "status":
     if let remaining = state["secondsRemaining"] as? Int {
         print("Remaining: \(remaining / 60)m \(remaining % 60)s")
     }
+    if let breakLeft = state["breakSecondsRemaining"] as? Int {
+        print("Break:     on break, \(breakLeft / 60)m \(breakLeft % 60)s left")
+    } else if state["breakAvailable"] as? Bool == true {
+        print("Break:     available now")
+    } else if let wait = state["breakAvailableInSeconds"] as? Int {
+        print("Break:     next in \(wait / 3600)h \((wait % 3600) / 60)m")
+    }
 
 case "start":
     let minutes = args.count > 1 ? (Int(args[1]) ?? 30) : 30
@@ -98,6 +109,27 @@ case "always":
     }
     send("always \(value)")
     print("Vise: always-on \(value).")
+
+case "break":
+    let sub = args.count > 1 ? args[1].lowercased() : "start"
+    if sub == "end" {
+        send("break end")
+        print("Vise: break ended.")
+    } else {
+        let state = readState()
+        if state["onBreak"] as? Bool == true {
+            print("Vise: already on a break.")
+        } else if let wait = state["breakAvailableInSeconds"] as? Int {
+            print("Vise: no break due yet — next one in \(wait / 3600)h \((wait % 3600) / 60)m.")
+            exit(1)
+        } else if state["enforcing"] as? Bool != true, state["onBreak"] as? Bool != true {
+            print("Vise: nothing is blocked, so there is nothing to take a break from.")
+            exit(1)
+        } else {
+            send("break")
+            print("Vise: break started.")
+        }
+    }
 
 case "block":
     guard args.count > 1 else { print("usage: visectl block <domain>"); exit(1) }
@@ -134,6 +166,31 @@ case "list":
     sites.sorted().forEach { print("  \($0)") }
     print("Apps (\(apps.count)):")
     apps.sorted().forEach { print("  \($0)") }
+
+case "set":
+    guard args.count > 2 else {
+        print("usage: visectl set break-minutes|break-interval|strict <value>")
+        exit(1)
+    }
+    let key = args[1].lowercased()
+    let value = args[2].lowercased()
+    switch key {
+    case "break-minutes", "break-interval":
+        guard let n = Int(value), n > 0 else { print("Value must be a positive number."); exit(1) }
+        send("set \(key) \(n)")
+        print("Vise: \(key) = \(n).")
+    case "strict":
+        guard value == "on" || value == "off" else { print("usage: visectl set strict on|off"); exit(1) }
+        send("set strict \(value)")
+        print("Vise: strict mode \(value).")
+    default:
+        print("Unknown key: \(key)")
+        exit(1)
+    }
+
+case "reload":
+    send("reload")
+    print("Vise: config reloaded from disk.")
 
 case "quit":
     send("stop")

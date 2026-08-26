@@ -21,7 +21,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         statusItem.menu = menu
         refreshButton()
 
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             self?.refreshButton()
         }
     }
@@ -29,11 +29,15 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private func refreshButton() {
         guard let button = statusItem.button else { return }
         let enforcing = store.config.isEnforcing
-        let symbol = enforcing ? "lock.fill" : "lock.open"
+        let symbol: String
+        if store.config.onBreak { symbol = "cup.and.saucer.fill" }
+        else { symbol = enforcing ? "lock.fill" : "lock.open" }
         button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: "Vise")
         button.image?.isTemplate = true
 
-        if let until = store.config.lockedUntil, until > Date() {
+        if let breakLeft = store.config.breakRemaining() {
+            button.title = " " + Format.duration(breakLeft)
+        } else if let until = store.config.lockedUntil, until > Date() {
             button.title = " " + Format.duration(Int(until.timeIntervalSinceNow))
         } else {
             button.title = ""
@@ -90,6 +94,32 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             menu.addItem(stop)
         }
 
+        // Break controls only make sense while something is actually blocked.
+        if store.config.blockReason() != nil {
+            menu.addItem(.separator())
+            if store.config.onBreak {
+                let end = NSMenuItem(title: "End break early", action: #selector(endBreak), keyEquivalent: "")
+                end.target = self
+                menu.addItem(end)
+            } else if store.config.canTakeBreak() {
+                let take = NSMenuItem(
+                    title: "Take a \(store.config.breakMinutes) minute break",
+                    action: #selector(takeBreak),
+                    keyEquivalent: ""
+                )
+                take.target = self
+                menu.addItem(take)
+            } else if let cooldown = store.config.breakCooldownRemaining() {
+                let waiting = NSMenuItem(
+                    title: "Next break in \(Format.duration(cooldown))",
+                    action: nil,
+                    keyEquivalent: ""
+                )
+                waiting.isEnabled = false
+                menu.addItem(waiting)
+            }
+        }
+
         menu.addItem(.separator())
         let settings = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settings.target = self
@@ -115,6 +145,16 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         } else {
             store.config.alwaysOn = true
         }
+        refreshButton()
+    }
+
+    @objc private func takeBreak() {
+        store.startBreak()
+        refreshButton()
+    }
+
+    @objc private func endBreak() {
+        store.endBreak()
         refreshButton()
     }
 

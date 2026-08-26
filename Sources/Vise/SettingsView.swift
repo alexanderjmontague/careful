@@ -9,6 +9,7 @@ struct SettingsView: View {
             AppsTab(store: store).tabItem { Label("Apps", systemImage: "square.grid.2x2") }
             SitesTab(store: store).tabItem { Label("Websites", systemImage: "globe") }
             SchedulesTab(store: store).tabItem { Label("Schedule", systemImage: "calendar") }
+            BreaksTab(store: store).tabItem { Label("Breaks", systemImage: "cup.and.saucer") }
         }
         .padding(16)
         .frame(minWidth: 600, minHeight: 500)
@@ -35,6 +36,61 @@ private struct LockBanner: View {
 
 private struct AppsTab: View {
     @ObservedObject var store: Store
+    @State private var showPicker = false
+
+    private var blocked: [String] {
+        store.config.blockedApps.sorted {
+            AppResolver.name(for: $0).localizedCaseInsensitiveCompare(AppResolver.name(for: $1)) == .orderedAscending
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            LockBanner(locked: store.config.isLocked)
+
+            HStack {
+                Text(blocked.isEmpty ? "No apps blocked" : "\(blocked.count) blocked")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Add apps…") { showPicker = true }
+            }
+
+            if blocked.isEmpty {
+                VStack(spacing: 6) {
+                    Image(systemName: "square.grid.2x2")
+                        .font(.largeTitle).foregroundStyle(.tertiary)
+                    Text("Blocked apps quit the moment you open them.")
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List {
+                    ForEach(blocked, id: \.self) { bundleID in
+                        HStack {
+                            Image(nsImage: AppResolver.icon(for: bundleID))
+                                .resizable().frame(width: 20, height: 20)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(AppResolver.name(for: bundleID))
+                                Text(bundleID).font(.caption2).foregroundStyle(.tertiary)
+                            }
+                            Spacer()
+                            Button {
+                                store.config.blockedApps.remove(bundleID)
+                            } label: { Image(systemName: "minus.circle") }
+                            .buttonStyle(.borderless)
+                            .disabled(store.config.isLocked)
+                        }
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showPicker) { AppPickerSheet(store: store) }
+    }
+}
+
+private struct AppPickerSheet: View {
+    @ObservedObject var store: Store
+    @Environment(\.dismiss) private var dismiss
     @State private var apps: [InstalledApp] = []
     @State private var query = ""
 
@@ -45,14 +101,13 @@ private struct AppsTab: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            LockBanner(locked: store.config.isLocked)
-            TextField("Search apps", text: $query)
-                .textFieldStyle(.roundedBorder)
+            Text("Choose apps to block").font(.headline)
+            TextField("Search", text: $query).textFieldStyle(.roundedBorder)
 
             List(filtered) { app in
                 HStack {
                     Image(nsImage: NSWorkspace.shared.icon(forFile: app.url.path))
-                        .resizable().frame(width: 20, height: 20)
+                        .resizable().frame(width: 18, height: 18)
                     Text(app.name)
                     if app.isBrowser {
                         Text("browser").font(.caption2).foregroundStyle(.secondary)
@@ -60,29 +115,29 @@ private struct AppsTab: View {
                             .background(Color.secondary.opacity(0.15), in: Capsule())
                     }
                     Spacer()
-                    Toggle("", isOn: binding(for: app))
-                        .labelsHidden()
-                        .disabled(disabled(app))
+                    Toggle("", isOn: Binding(
+                        get: { store.config.blockedApps.contains(app.id) },
+                        set: { on in
+                            if on { store.config.blockedApps.insert(app.id) }
+                            else if !store.config.isLocked { store.config.blockedApps.remove(app.id) }
+                        }
+                    ))
+                    .labelsHidden()
+                    .disabled(store.config.isLocked && store.config.blockedApps.contains(app.id))
                 }
             }
-            Text("Blocking a browser closes it entirely. To block sites inside a browser, use the Websites tab.")
+
+            Text("Blocking a browser quits it entirely. To block sites inside a browser, use the Websites tab.")
                 .font(.caption).foregroundStyle(.secondary)
-        }
-        .onAppear { if apps.isEmpty { apps = AppScanner.scan() } }
-    }
 
-    private func disabled(_ app: InstalledApp) -> Bool {
-        store.config.isLocked && store.config.blockedApps.contains(app.id)
-    }
-
-    private func binding(for app: InstalledApp) -> Binding<Bool> {
-        Binding(
-            get: { store.config.blockedApps.contains(app.id) },
-            set: { on in
-                if on { store.config.blockedApps.insert(app.id) }
-                else if !store.config.isLocked { store.config.blockedApps.remove(app.id) }
+            HStack {
+                Spacer()
+                Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
             }
-        )
+        }
+        .padding(16)
+        .frame(width: 460, height: 460)
+        .onAppear { if apps.isEmpty { apps = AppScanner.scan() } }
     }
 }
 
@@ -224,6 +279,75 @@ private struct MinutePicker: View {
             .labelsHidden()
             .datePickerStyle(.field)
             .frame(width: 84)
+        }
+    }
+}
+
+// MARK: - Breaks
+
+private struct BreaksTab: View {
+    @ObservedObject var store: Store
+    /// The countdown has to redraw on its own; nothing else mutates while a break runs.
+    @State private var now = Date()
+    private let tick = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            status
+
+            Divider()
+
+            Form {
+                Stepper(
+                    "Break length: \(store.config.breakMinutes) minutes",
+                    value: Binding(
+                        get: { store.config.breakMinutes },
+                        set: { store.config.breakMinutes = $0 }
+                    ),
+                    in: 1...60
+                )
+                .disabled(store.config.isLocked)
+
+                Stepper(
+                    "One break every \(store.config.breakIntervalHours) hours",
+                    value: Binding(
+                        get: { store.config.breakIntervalHours },
+                        set: { store.config.breakIntervalHours = $0 }
+                    ),
+                    in: 1...12
+                )
+                .disabled(store.config.isLocked)
+            }
+
+            Text("A break pauses blocking without ending the block — the timer or schedule keeps running underneath. Ending a break early does not earn you another one; the next break is always measured from when the last one started.")
+                .font(.caption).foregroundStyle(.secondary)
+
+            Spacer()
+        }
+        .onReceive(tick) { now = $0 }
+    }
+
+    @ViewBuilder
+    private var status: some View {
+        if let remaining = store.config.breakRemaining(at: now) {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("On break — \(Format.duration(remaining)) left", systemImage: "cup.and.saucer.fill")
+                    .font(.title3)
+                Button("End break early") { store.endBreak() }
+            }
+        } else if store.config.blockReason(at: now) == nil {
+            Label("Nothing is blocked right now.", systemImage: "moon.zzz")
+                .foregroundStyle(.secondary)
+        } else if store.config.canTakeBreak(at: now) {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("A break is available", systemImage: "checkmark.circle")
+                    .font(.title3)
+                Button("Take a \(store.config.breakMinutes) minute break") { store.startBreak() }
+                    .buttonStyle(.borderedProminent)
+            }
+        } else if let cooldown = store.config.breakCooldownRemaining(at: now) {
+            Label("Next break in \(Format.duration(cooldown))", systemImage: "hourglass")
+                .font(.title3).foregroundStyle(.secondary)
         }
     }
 }

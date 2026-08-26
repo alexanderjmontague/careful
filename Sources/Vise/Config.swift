@@ -37,11 +37,34 @@ struct Config: Codable {
     /// When true, a running block cannot be shortened or its lists loosened from the UI.
     var strictMode: Bool = true
 
+    // MARK: Breaks
+    /// How long one break lasts, and how often one becomes available again.
+    var breakMinutes: Int = 10
+    var breakIntervalHours: Int = 4
+    /// Start of the most recent break. The cooldown is measured from this instant, so
+    /// ending a break early does not buy another one.
+    var breakStartedAt: Date? = nil
+    /// When the current break stops. Set separately so a break can be cut short
+    /// without disturbing the cooldown.
+    var breakEndsAt: Date? = nil
+
     static func load() -> Config {
-        guard let data = try? Data(contentsOf: Paths.config),
-              let decoded = try? JSONDecoder().decode(Config.self, from: data)
-        else { return Config() }
-        return decoded
+        guard let data = try? Data(contentsOf: Paths.config) else { return Config() }
+        let decoder = JSONDecoder()
+        // Must mirror the encoder below. Without this, any config holding a date fails
+        // to decode and the blocklist is silently replaced with an empty one.
+        decoder.dateDecodingStrategy = .iso8601
+        do {
+            return try decoder.decode(Config.self, from: data)
+        } catch {
+            // Never let an unreadable config quietly destroy the user's lists.
+            let stamp = ISO8601DateFormatter().string(from: Date())
+                .replacingOccurrences(of: ":", with: "-")
+            let backup = Paths.support.appendingPathComponent("config.unreadable-\(stamp).json")
+            try? data.write(to: backup)
+            vlog("config could not be read (\(error)); original saved to \(backup.lastPathComponent)")
+            return Config()
+        }
     }
 
     func save() {
@@ -52,8 +75,8 @@ struct Config: Codable {
         try? data.write(to: Paths.config, options: .atomic)
     }
 
-    /// The reason enforcement is currently on, if it is.
-    func activeReason(at date: Date = Date()) -> String? {
+    /// Why a block is scheduled to be on right now, regardless of any break in progress.
+    func blockReason(at date: Date = Date()) -> String? {
         if let until = lockedUntil, until > date {
             let remaining = Int(until.timeIntervalSince(date))
             return "Timer — \(Format.duration(remaining)) left"
@@ -65,7 +88,46 @@ struct Config: Codable {
         return nil
     }
 
-    var isEnforcing: Bool { activeReason() != nil }
+    /// What the user sees: a break takes precedence over the underlying reason.
+    func activeReason(at date: Date = Date()) -> String? {
+        if let remaining = breakRemaining(at: date) {
+            return "On break — \(Format.duration(remaining)) left"
+        }
+        return blockReason(at: date)
+    }
+
+    /// Blocking is live only when a block is scheduled and no break is running.
+    var isEnforcing: Bool { blockReason() != nil && breakRemaining() == nil }
+
+    // MARK: - Breaks
+
+    /// Seconds left in the current break, or nil when no break is running.
+    func breakRemaining(at date: Date = Date()) -> Int? {
+        guard let ends = breakEndsAt, ends > date else { return nil }
+        return Int(ends.timeIntervalSince(date))
+    }
+
+    var onBreak: Bool { breakRemaining() != nil }
+
+    /// When the next break unlocks. Cooldown runs from the start of the last break,
+    /// so a 10-minute break every 4 hours means 4 hours between break starts.
+    func nextBreakAt() -> Date? {
+        guard let started = breakStartedAt else { return nil }
+        return started.addingTimeInterval(TimeInterval(breakIntervalHours * 3600))
+    }
+
+    /// Seconds until a break becomes available, or nil when one is available now.
+    func breakCooldownRemaining(at date: Date = Date()) -> Int? {
+        guard let next = nextBreakAt(), next > date else { return nil }
+        return Int(next.timeIntervalSince(date))
+    }
+
+    /// A break is only meaningful while something is actually being blocked.
+    func canTakeBreak(at date: Date = Date()) -> Bool {
+        blockReason(at: date) != nil
+            && breakRemaining(at: date) == nil
+            && breakCooldownRemaining(at: date) == nil
+    }
 
     /// True when the user must not be allowed to weaken the configuration.
     var isLocked: Bool {

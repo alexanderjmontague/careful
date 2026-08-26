@@ -32,6 +32,16 @@ Three layers, none of which need root:
 While a block is running the menu bar shows no Quit item and no working Stop item, and the
 Settings window lets you add blocked apps and sites but not remove them.
 
+## Breaks
+
+A break pauses blocking without ending the block — the timer or schedule keeps running
+underneath. Defaults to **10 minutes, once every 4 hours**, adjustable in Settings → Breaks
+or with `visectl set break-minutes 10` / `visectl set break-interval 4`.
+
+The cooldown is measured from the **start** of the last break, so ending one early does not
+earn you another. Break state is written to disk, so killing the app does not reset the
+cooldown either.
+
 ## The way out
 
 `visectl` ignores every lock. That is intentional — it is the door you keep the key to.
@@ -41,6 +51,10 @@ visectl status              is a block running, and how long is left
 visectl start 50            block for 50 minutes
 visectl stop                end the block, even when locked
 visectl always on|off       open-ended block
+visectl break               take a break, if one is due
+visectl break end           end the current break early
+visectl set <key> <value>   break-minutes | break-interval | strict on|off
+visectl reload              re-read config.json from disk
 visectl block <domain>      add a site
 visectl unblock <domain>    remove a site
 visectl block-app <id>      add an app by bundle id, e.g. com.spotify.client
@@ -68,6 +82,12 @@ switching tabs inside a browser fires no system notification.
 
 A bare domain matches the host and its subdomains, so `twitter.com` catches
 `mobile.twitter.com`. Anything containing `/` or `=` is treated as a substring rule.
+
+## Editing config by hand
+
+Don't. `~/Library/Application Support/Vise/config.json` is owned by the running app, which
+rewrites it whenever anything changes — a hand edit will usually lose the race and vanish.
+Use `visectl` instead, or `visectl reload` if you really must edit the file.
 
 ## Limits, honestly
 

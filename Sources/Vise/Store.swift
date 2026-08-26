@@ -30,9 +30,29 @@ final class Store: ObservableObject {
         config.lockedUntil = end
     }
 
+    /// Start a break if one is due. Refused otherwise, so the cooldown cannot be skipped.
+    @discardableResult
+    func startBreak() -> Bool {
+        guard config.canTakeBreak() else { return false }
+        let now = Date()
+        config.breakStartedAt = now
+        config.breakEndsAt = now.addingTimeInterval(TimeInterval(config.breakMinutes * 60))
+        vlog("break started — \(config.breakMinutes)m")
+        return true
+    }
+
+    /// End a break early. breakStartedAt is left alone so the cooldown still applies.
+    func endBreak() {
+        guard config.onBreak else { return }
+        config.breakEndsAt = Date()
+        vlog("break ended early")
+    }
+
     func stopEverything() {
         config.lockedUntil = nil
         config.alwaysOn = false
+        config.breakStartedAt = nil
+        config.breakEndsAt = nil
         for index in config.schedules.indices { config.schedules[index].enabled = false }
     }
 
@@ -49,6 +69,14 @@ final class Store: ObservableObject {
             "pid": ProcessInfo.processInfo.processIdentifier,
             "updated": ISO8601DateFormatter().string(from: Date()),
         ]
+        payload["onBreak"] = config.onBreak
+        if let remaining = config.breakRemaining() {
+            payload["breakSecondsRemaining"] = remaining
+        }
+        if let cooldown = config.breakCooldownRemaining() {
+            payload["breakAvailableInSeconds"] = cooldown
+        }
+        payload["breakAvailable"] = config.canTakeBreak()
         if let until = config.lockedUntil, until > Date() {
             payload["lockedUntil"] = ISO8601DateFormatter().string(from: until)
             payload["secondsRemaining"] = Int(until.timeIntervalSinceNow)
@@ -97,6 +125,25 @@ final class Store: ObservableObject {
             case "unblock-app":
                 if parts.count > 1 { config.blockedApps.remove(parts[1]) }
                 vlog("visectl: unblock-app \(parts.count > 1 ? parts[1] : "")")
+            case "break":
+                let sub = parts.count > 1 ? parts[1].lowercased() : "start"
+                if sub == "end" {
+                    endBreak()
+                } else if !startBreak() {
+                    vlog("visectl: break refused (not due, or nothing is blocked)")
+                }
+            case "set":
+                guard parts.count > 2 else { break }
+                switch parts[1].lowercased() {
+                case "break-minutes":
+                    if let n = Int(parts[2]), n > 0 { config.breakMinutes = n }
+                case "break-interval":
+                    if let n = Int(parts[2]), n > 0 { config.breakIntervalHours = n }
+                case "strict":
+                    config.strictMode = parts[2].lowercased() == "on"
+                default: break
+                }
+                vlog("visectl: set \(parts[1]) \(parts[2])")
             case "reload":
                 config = Config.load()
                 vlog("visectl: reload")
