@@ -36,6 +36,9 @@ struct TabRef {
 protocol Browser {
     var name: String { get }
     var bundleID: String { get }
+    /// Dia advertises `URL` as read-write but silently ignores writes, so blocked tabs
+    /// there have to be closed instead of redirected. Verified by experiment.
+    var canRedirect: Bool { get }
     /// Every open tab across every window, so background tabs cannot sit on a blocked page.
     func allTabs() -> [TabRef]
     func redirect(_ ref: TabRef, to destination: String)
@@ -46,6 +49,7 @@ struct ChromiumBrowser: Browser {
     let name: String
     let bundleID: String
     let scriptName: String
+    var canRedirect: Bool = true
 
     func allTabs() -> [TabRef] {
         let source = """
@@ -82,7 +86,13 @@ struct ChromiumBrowser: Browser {
     func closeTab(_ ref: TabRef) {
         AppleScriptRunner.run("""
         tell application "\(scriptName)"
-            close tab \(ref.tab) of window \(ref.window)
+            if (count of windows) is greater than or equal to \(ref.window) then
+                if (count of tabs of window \(ref.window)) is greater than or equal to \(ref.tab) then
+                    if (URL of tab \(ref.tab) of window \(ref.window)) is "\(AppleScriptString.quote(ref.url))" then
+                        close tab \(ref.tab) of window \(ref.window)
+                    end if
+                end if
+            end if
         end tell
         """)
     }
@@ -91,6 +101,7 @@ struct ChromiumBrowser: Browser {
 struct SafariBrowser: Browser {
     let name = "Safari"
     let bundleID = "com.apple.Safari"
+    let canRedirect = true
 
     func allTabs() -> [TabRef] {
         let source = """
@@ -148,7 +159,8 @@ enum TabParser {
 enum BrowserRegistry {
     static let all: [Browser] = [
         ChromiumBrowser(name: "Google Chrome", bundleID: "com.google.Chrome", scriptName: "Google Chrome"),
-        ChromiumBrowser(name: "Dia", bundleID: "company.thebrowser.dia", scriptName: "Dia"),
+        ChromiumBrowser(name: "Dia", bundleID: "company.thebrowser.dia", scriptName: "Dia",
+                        canRedirect: false),
         ChromiumBrowser(name: "Arc", bundleID: "company.thebrowser.Browser", scriptName: "Arc"),
         ChromiumBrowser(name: "Brave", bundleID: "com.brave.Browser", scriptName: "Brave Browser"),
         ChromiumBrowser(name: "Microsoft Edge", bundleID: "com.microsoft.edgemac", scriptName: "Microsoft Edge"),

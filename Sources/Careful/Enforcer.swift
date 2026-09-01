@@ -168,12 +168,25 @@ final class Enforcer: ObservableObject {
         scriptQueue.async { [weak self] in
             var events: [String] = []
             for browser in targets {
-                for tab in browser.allTabs() {
+                let hits = browser.allTabs().compactMap { tab -> (TabRef, String)? in
                     // Never bounce our own block page; that would loop forever.
-                    guard !tab.url.hasPrefix(Paths.blockPage.absoluteString) else { continue }
-                    guard let site = config.matchedSite(for: tab.url) else { continue }
-                    browser.redirect(tab, to: BlockPage.url(site: site, reason: reason))
-                    events.append("Blocked \(site) in \(browser.name)")
+                    guard !tab.url.hasPrefix(Paths.blockPage.absoluteString) else { return nil }
+                    guard let site = config.matchedSite(for: tab.url) else { return nil }
+                    return (tab, site)
+                }
+                guard !hits.isEmpty else { continue }
+
+                if browser.canRedirect {
+                    for (tab, site) in hits {
+                        browser.redirect(tab, to: BlockPage.url(site: site, reason: reason))
+                        events.append("Blocked \(site) in \(browser.name)")
+                    }
+                } else {
+                    // Closing shifts every later index, so work from the back forwards.
+                    for (tab, site) in hits.sorted(by: { $0.0.tab > $1.0.tab }) {
+                        browser.closeTab(tab)
+                        events.append("Closed \(site) tab in \(browser.name)")
+                    }
                 }
             }
             DispatchQueue.main.async {

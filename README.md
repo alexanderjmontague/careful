@@ -93,6 +93,9 @@ Use `carefulctl` instead, or `carefulctl reload` if you really must edit the fil
 
 - **Verified working: Chrome and Dia.** Arc, Brave, Edge, Comet, Vivaldi, Opera and Safari
   are wired up and should work, but were not tested.
+- **Dia ignores URL writes.** Its dictionary advertises `URL` as read-write, but writes
+  are silently dropped, so blocked tabs there are closed rather than redirected to the
+  block page. Every other supported browser gets the gentler redirect.
 - **Firefox and Zen cannot be supported** this way — no AppleScript tab access. Block the
   whole app instead.
 - **No network-level blocking.** Careful does not touch `/etc/hosts` or the firewall, so a
