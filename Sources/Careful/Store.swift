@@ -53,7 +53,16 @@ final class Store: ObservableObject {
         config.alwaysOn = false
         config.breakStartedAt = nil
         config.breakEndsAt = nil
-        for index in config.schedules.indices { config.schedules[index].enabled = false }
+        // Stand down for the rest of the current window instead of disabling schedules.
+        // Flipping `enabled` off here used to erase the user's schedules permanently.
+        config.suppressedUntil = config.currentWindowEnd()
+    }
+
+    /// Undo a suppression and switch every schedule back on.
+    func resumeSchedules() {
+        config.suppressedUntil = nil
+        for index in config.schedules.indices { config.schedules[index].enabled = true }
+        vlog("schedules resumed")
     }
 
     // MARK: - State mirror
@@ -144,6 +153,8 @@ final class Store: ObservableObject {
                 default: break
                 }
                 vlog("carefulctl: set \(parts[1]) \(parts[2])")
+            case "resume":
+                resumeSchedules()
             case "reload":
                 config = Config.load()
                 vlog("carefulctl: reload")

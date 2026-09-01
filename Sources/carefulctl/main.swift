@@ -188,6 +188,10 @@ case "set":
         exit(1)
     }
 
+case "resume":
+    send("resume")
+    print("Careful: schedules re-enabled.")
+
 case "reload":
     send("reload")
     print("Careful: config reloaded from disk.")

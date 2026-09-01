@@ -32,6 +32,10 @@ struct Config: Codable {
     var schedules: [Schedule] = []
     /// Set while a manual timed block is running; enforcement continues until this date.
     var lockedUntil: Date? = nil
+    /// Set by `stop` to stand down for the remainder of the current schedule window.
+    /// Schedules stay enabled, so the next window starts normally — stopping a block
+    /// must never quietly delete configuration the user set up.
+    var suppressedUntil: Date? = nil
     /// Manual always-on toggle, independent of timers and schedules.
     var alwaysOn: Bool = false
     /// When true, a running block cannot be shortened or its lists loosened from the UI.
@@ -77,6 +81,7 @@ struct Config: Codable {
 
     /// Why a block is scheduled to be on right now, regardless of any break in progress.
     func blockReason(at date: Date = Date()) -> String? {
+        if let suppressed = suppressedUntil, suppressed > date { return nil }
         if let until = lockedUntil, until > date {
             let remaining = Int(until.timeIntervalSince(date))
             return "Timer — \(Format.duration(remaining)) left"
@@ -98,6 +103,17 @@ struct Config: Codable {
 
     /// Blocking is live only when a block is scheduled and no break is running.
     var isEnforcing: Bool { blockReason() != nil && breakRemaining() == nil }
+
+    /// End of the schedule window covering `date`, used to scope a `stop` to just
+    /// this window rather than switching the schedule off for good.
+    func currentWindowEnd(at date: Date = Date(), calendar: Calendar = .current) -> Date? {
+        guard let schedule = schedules.first(where: { $0.isActive(at: date) }) else { return nil }
+        let startOfDay = calendar.startOfDay(for: date)
+        var end = calendar.date(byAdding: .minute, value: schedule.endMinute, to: startOfDay) ?? date
+        // A window that wraps past midnight ends tomorrow.
+        if end <= date { end = calendar.date(byAdding: .day, value: 1, to: end) ?? end }
+        return end
+    }
 
     // MARK: - Breaks
 
