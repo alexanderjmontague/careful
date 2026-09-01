@@ -18,6 +18,11 @@ final class Enforcer: ObservableObject {
     private var scriptBusy = false
 
     /// Apps that must never be terminated, whatever the blocklist says.
+    /// Per-process kill bookkeeping. terminate() only *requests* a quit, so without
+    /// this both the notification handler and the 1s sweep fire again while the app is
+    /// still on its way out — which is what produced three "Closed" lines in one second.
+    private var killAttempts: [pid_t: (count: Int, last: Date)] = [:]
+
     private static let protected: Set<String> = [
         Paths.bundleID, "com.apple.finder", "com.apple.loginwindow",
         "com.apple.systemuiserver", "com.apple.dock", "com.apple.controlcenter",
@@ -90,10 +95,33 @@ final class Enforcer: ObservableObject {
         guard enforcing, let bundleID = app.bundleIdentifier else { return }
         guard !Self.protected.contains(bundleID) else { return }
         guard store.config.blockedApps.contains(bundleID) else { return }
+        close(app, bundleID: bundleID)
+    }
 
-        let name = app.localizedName ?? bundleID
-        if !app.terminate() { app.forceTerminate() }
-        note("Closed \(name)")
+    /// Ask once, then insist. Logs a single line per process so a burst of retries
+    /// does not read as a burst of separate launches.
+    private func close(_ app: NSRunningApplication, bundleID: String) {
+        let pid = app.processIdentifier
+        let now = Date()
+
+        if let prior = killAttempts[pid], now.timeIntervalSince(prior.last) < 1.5 { return }
+
+        let attempt = (killAttempts[pid]?.count ?? 0) + 1
+        killAttempts[pid] = (attempt, now)
+
+        if attempt == 1 {
+            app.terminate()
+            note("Closed \(app.localizedName ?? bundleID)")
+        } else {
+            // It ignored the polite request, so stop being polite.
+            app.forceTerminate()
+        }
+
+        // Keep the table from growing: drop entries for processes that are gone.
+        if killAttempts.count > 32 {
+            let live = Set(NSWorkspace.shared.runningApplications.map(\.processIdentifier))
+            killAttempts = killAttempts.filter { live.contains($0.key) }
+        }
     }
 
     private func sweepApps() {
@@ -105,9 +133,7 @@ final class Enforcer: ObservableObject {
                   blocked.contains(bundleID),
                   !Self.protected.contains(bundleID)
             else { continue }
-            let name = app.localizedName ?? bundleID
-            if !app.terminate() { app.forceTerminate() }
-            note("Closed \(name)")
+            close(app, bundleID: bundleID)
         }
     }
 
