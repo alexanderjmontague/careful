@@ -154,16 +154,36 @@ struct Config: Codable {
 
     func matchedSite(for url: String) -> String? {
         let haystack = url.lowercased()
-        guard let host = URL(string: url)?.host?.lowercased() else {
-            return blockedSites.first { haystack.contains($0.lowercased()) }
-        }
+        let host = Self.host(of: url)
+
         return blockedSites.first { raw in
-            let needle = raw.lowercased().trimmingCharacters(in: .whitespaces)
+            var needle = raw.lowercased().trimmingCharacters(in: .whitespaces)
+            if needle.hasPrefix("www.") { needle = String(needle.dropFirst(4)) }
             guard !needle.isEmpty else { return false }
-            // A bare domain matches the host and its subdomains; anything else is a substring rule.
-            if needle.contains("/") || needle.contains("=") { return haystack.contains(needle) }
-            return host == needle || host.hasSuffix("." + needle) || haystack.contains(needle)
+
+            // A rule carrying a path or query is matched as a substring of the whole URL.
+            if needle.contains("/") || needle.contains("=") || needle.contains("?") {
+                return haystack.contains(needle)
+            }
+
+            // A bare domain matches that host or a subdomain of it, and nothing else.
+            // Substring matching here is what made "x.com" block "dropbox.com".
+            guard let host else { return false }
+            return host == needle || host.hasSuffix("." + needle)
         }
+    }
+
+    /// Host of a URL, falling back to manual parsing for strings Foundation rejects.
+    static func host(of url: String) -> String? {
+        if let parsed = URL(string: url)?.host?.lowercased() { return parsed }
+        var rest = url.lowercased()
+        for scheme in ["https://", "http://", "file://"] where rest.hasPrefix(scheme) {
+            rest = String(rest.dropFirst(scheme.count))
+        }
+        if let slash = rest.firstIndex(of: "/") { rest = String(rest[rest.startIndex..<slash]) }
+        if let at = rest.lastIndex(of: "@") { rest = String(rest[rest.index(after: at)...]) }
+        if let colon = rest.firstIndex(of: ":") { rest = String(rest[rest.startIndex..<colon]) }
+        return rest.isEmpty ? nil : rest
     }
 }
 
