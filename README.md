@@ -75,6 +75,10 @@ running process, so apps launched into the background and apps already open when
 starts are both caught. Blocked apps are sent a quit, then force-killed if they resist.
 Finder, Dock, and the login window are permanently exempt.
 
+Every browser script is wrapped in `if application "X" is running`. Without that guard,
+`tell application` *launches* a browser that is not running — so the sweep would resurrect
+a browser the moment you quit it, forever.
+
 **Websites** — AppleScript reads every open tab in every window and rewrites the URL of any
 match to a local block page. Rewriting rather than closing means you keep the tab and the
 window. The frontmost browser is checked every 0.6s; other running browsers every 3s, since

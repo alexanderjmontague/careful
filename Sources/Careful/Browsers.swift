@@ -52,15 +52,20 @@ struct ChromiumBrowser: Browser {
     var canRedirect: Bool = true
 
     func allTabs() -> [TabRef] {
+        // `tell application` LAUNCHES the app when it is not running. Guarding with
+        // `is running` — which does not launch — stops the sweep from resurrecting a
+        // browser the user just quit, over and over.
         let source = """
         set out to ""
-        tell application "\(scriptName)"
-            repeat with w from 1 to (count of windows)
-                repeat with t from 1 to (count of tabs of window w)
-                    set out to out & w & "|" & t & "|" & (URL of tab t of window w) & linefeed
+        if application "\(scriptName)" is running then
+            tell application "\(scriptName)"
+                repeat with w from 1 to (count of windows)
+                    repeat with t from 1 to (count of tabs of window w)
+                        set out to out & w & "|" & t & "|" & (URL of tab t of window w) & linefeed
+                    end repeat
                 end repeat
-            end repeat
-        end tell
+            end tell
+        end if
         return out
         """
         return TabParser.parse(AppleScriptRunner.run(source))
@@ -71,6 +76,7 @@ struct ChromiumBrowser: Browser {
         // Re-check the URL inside the same script so a shifted index cannot redirect
         // an innocent tab to the block page.
         AppleScriptRunner.run("""
+        if application "\(scriptName)" is running then
         tell application "\(scriptName)"
             if (count of windows) is greater than or equal to \(ref.window) then
                 if (count of tabs of window \(ref.window)) is greater than or equal to \(ref.tab) then
@@ -80,11 +86,13 @@ struct ChromiumBrowser: Browser {
                 end if
             end if
         end tell
+        end if
         """)
     }
 
     func closeTab(_ ref: TabRef) {
         AppleScriptRunner.run("""
+        if application "\(scriptName)" is running then
         tell application "\(scriptName)"
             if (count of windows) is greater than or equal to \(ref.window) then
                 if (count of tabs of window \(ref.window)) is greater than or equal to \(ref.tab) then
@@ -94,6 +102,7 @@ struct ChromiumBrowser: Browser {
                 end if
             end if
         end tell
+        end if
         """)
     }
 }
@@ -106,15 +115,17 @@ struct SafariBrowser: Browser {
     func allTabs() -> [TabRef] {
         let source = """
         set out to ""
-        tell application "Safari"
-            repeat with w from 1 to (count of windows)
-                try
-                    repeat with t from 1 to (count of tabs of window w)
-                        set out to out & w & "|" & t & "|" & (URL of tab t of window w) & linefeed
-                    end repeat
-                end try
-            end repeat
-        end tell
+        if application "Safari" is running then
+            tell application "Safari"
+                repeat with w from 1 to (count of windows)
+                    try
+                        repeat with t from 1 to (count of tabs of window w)
+                            set out to out & w & "|" & t & "|" & (URL of tab t of window w) & linefeed
+                        end repeat
+                    end try
+                end repeat
+            end tell
+        end if
         return out
         """
         return TabParser.parse(AppleScriptRunner.run(source))
@@ -122,6 +133,7 @@ struct SafariBrowser: Browser {
 
     func redirect(_ ref: TabRef, to destination: String) {
         AppleScriptRunner.run("""
+        if application "Safari" is running then
         tell application "Safari"
             if (count of windows) is greater than or equal to \(ref.window) then
                 if (count of tabs of window \(ref.window)) is greater than or equal to \(ref.tab) then
@@ -131,14 +143,17 @@ struct SafariBrowser: Browser {
                 end if
             end if
         end tell
+        end if
         """)
     }
 
     func closeTab(_ ref: TabRef) {
         AppleScriptRunner.run("""
+        if application "Safari" is running then
         tell application "Safari"
             close tab \(ref.tab) of window \(ref.window)
         end tell
+        end if
         """)
     }
 }
