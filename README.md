@@ -68,6 +68,12 @@ carefulctl log [n]             recent activity
 `carefulctl quit` is the full stop: it boots the LaunchAgent out first, so KeepAlive cannot
 resurrect the process.
 
+**What `stop` does to schedules.** It stands down only for the remainder of the current
+schedule window (`suppressedUntil`), leaving every schedule enabled so the next window starts
+normally. An earlier version flipped each schedule's `enabled` to false, which silently
+deleted the user's configuration every time `stop` ran; `carefulctl resume` clears any
+stand-down and re-enables everything if that state is ever wrong.
+
 ## How blocking works
 
 **Apps** — `NSWorkspace` launch/activate notifications plus a 1-second sweep of every
@@ -81,11 +87,28 @@ a browser the moment you quit it, forever.
 
 **Websites** — AppleScript reads every open tab in every window and rewrites the URL of any
 match to a local block page. Rewriting rather than closing means you keep the tab and the
-window. The frontmost browser is checked every 0.6s; other running browsers every 3s, since
-switching tabs inside a browser fires no system notification.
+window. (Dia is the exception: it silently ignores URL writes, so its blocked tabs are closed
+instead — see Limits.) The frontmost browser is checked every 0.6s; other running browsers
+every 3s, since switching tabs inside a browser fires no system notification.
+
+Tabs are addressed by index, and an index goes stale the moment any tab closes. Every rewrite
+and close therefore re-reads the tab's URL inside the same AppleScript call and only acts if it
+still matches — otherwise a shifted index would redirect an innocent tab to the block page.
 
 A bare domain matches the host and its subdomains, so `twitter.com` catches
 `mobile.twitter.com`. Anything containing `/` or `=` is treated as a substring rule.
+
+Bare domains are deliberately **not** substring-matched against the URL: `dropbox.com` ends
+with `x.com`, and an early version blocked Dropbox because of it. `./run-tests.sh` compiles
+the matcher against the real `Config.swift` and asserts 21 cases including that one — add a
+case there before fixing any future false positive.
+
+**Killing apps** — `NSRunningApplication.terminate()` returns `true` when the quit *request*
+was delivered, not when the app died. Careful tracks kill attempts per process: first attempt
+asks politely and logs once, a second attempt within 1.5s is suppressed, and a later retry
+escalates to `forceTerminate()`. Without that, the launch notification and the 1-second sweep
+both fired on the same still-quitting app and the log showed three "Closed" lines for one
+launch.
 
 ## Editing config by hand
 
