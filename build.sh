@@ -22,7 +22,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>1.0</string>
   <key>CFBundleVersion</key><string>1</string>
-  <key>LSMinimumSystemVersion</key><string>13.0</string>
+  <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundleIconName</key><string>AppIcon</string>
   <!-- Accessory app: no Dock tile, no Cmd-Q, and no entry in Force Quit Applications. -->
@@ -46,14 +46,14 @@ xcrun actool "$ROOT/Resources/Careful.xcassets" \
 
 echo "==> Compiling Careful"
 swiftc -O -swift-version 5 \
-  -target arm64-apple-macosx13.0 \
+  -target arm64-apple-macosx14.0 \
   -framework AppKit -framework SwiftUI -framework Combine \
   -o "$APP/Contents/MacOS/Careful" \
   "$ROOT"/Sources/Careful/*.swift
 
 echo "==> Compiling carefulctl"
 swiftc -O -swift-version 5 \
-  -target arm64-apple-macosx13.0 \
+  -target arm64-apple-macosx14.0 \
   -o "$BUILD/carefulctl" \
   "$ROOT"/Sources/carefulctl/main.swift
 

@@ -9,7 +9,7 @@ struct SettingsView: View {
             AppsTab(store: store).tabItem { Label("Apps", systemImage: "square.grid.2x2") }
             SitesTab(store: store).tabItem { Label("Websites", systemImage: "globe") }
             SchedulesTab(store: store).tabItem { Label("Schedule", systemImage: "calendar") }
-            BreaksTab(store: store).tabItem { Label("Breaks", systemImage: "cup.and.saucer") }
+            LogTab(store: store).tabItem { Label("Log", systemImage: "list.bullet.rectangle") }
         }
         .padding(16)
         .frame(minWidth: 600, minHeight: 500)
@@ -283,71 +283,46 @@ private struct MinutePicker: View {
     }
 }
 
-// MARK: - Breaks
+// MARK: - Log
 
-private struct BreaksTab: View {
+/// Every unlock ever taken, newest first. Deliberately has no clear button: the point of
+/// writing a reason is being able to read it back later.
+private struct LogTab: View {
     @ObservedObject var store: Store
-    /// The countdown has to redraw on its own; nothing else mutates while a break runs.
-    @State private var now = Date()
-    private let tick = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    @State private var entries: [UnlockEntry] = []
+
+    private static let stamp: DateFormatter = {
+        let f = DateFormatter(); f.dateStyle = .medium; f.timeStyle = .short; return f
+    }()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            status
-
-            Divider()
-
-            Form {
-                Stepper(
-                    "Break length: \(store.config.breakMinutes) minutes",
-                    value: Binding(
-                        get: { store.config.breakMinutes },
-                        set: { store.config.breakMinutes = $0 }
-                    ),
-                    in: 1...60
-                )
-                .disabled(store.config.isLocked)
-
-                Stepper(
-                    "One break every \(store.config.breakIntervalHours) hours",
-                    value: Binding(
-                        get: { store.config.breakIntervalHours },
-                        set: { store.config.breakIntervalHours = $0 }
-                    ),
-                    in: 1...12
-                )
-                .disabled(store.config.isLocked)
+        VStack(alignment: .leading, spacing: 10) {
+            if entries.isEmpty {
+                VStack(spacing: 6) {
+                    Image(systemName: "list.bullet.rectangle")
+                        .font(.largeTitle).foregroundStyle(.tertiary)
+                    Text("Nothing unlocked yet.").foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List(entries.reversed()) { entry in
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Image(systemName: entry.kind == .app ? "app.fill" : "globe")
+                                .foregroundStyle(.secondary)
+                            Text(entry.displayName).fontWeight(.medium)
+                            Spacer()
+                            Text("\(entry.minutes) min").font(.caption).foregroundStyle(.secondary)
+                        }
+                        Text(entry.reason).font(.callout)
+                        Text(Self.stamp.string(from: entry.startedAt))
+                            .font(.caption2).foregroundStyle(.tertiary)
+                    }
+                    .padding(.vertical, 3)
+                }
             }
-
-            Text("A break pauses blocking without ending the block — the timer or schedule keeps running underneath. Ending a break early does not earn you another one; the next break is always measured from when the last one started.")
-                .font(.caption).foregroundStyle(.secondary)
-
-            Spacer()
         }
-        .onReceive(tick) { now = $0 }
-    }
-
-    @ViewBuilder
-    private var status: some View {
-        if let remaining = store.config.breakRemaining(at: now) {
-            VStack(alignment: .leading, spacing: 8) {
-                Label("On break — \(Format.duration(remaining)) left", systemImage: "cup.and.saucer.fill")
-                    .font(.title3)
-                Button("End break early") { store.endBreak() }
-            }
-        } else if store.config.blockReason(at: now) == nil {
-            Label("Nothing is blocked right now.", systemImage: "moon.zzz")
-                .foregroundStyle(.secondary)
-        } else if store.config.canTakeBreak(at: now) {
-            VStack(alignment: .leading, spacing: 8) {
-                Label("A break is available", systemImage: "checkmark.circle")
-                    .font(.title3)
-                Button("Take a \(store.config.breakMinutes) minute break") { store.startBreak() }
-                    .buttonStyle(.borderedProminent)
-            }
-        } else if let cooldown = store.config.breakCooldownRemaining(at: now) {
-            Label("Next break in \(Format.duration(cooldown))", systemImage: "hourglass")
-                .font(.title3).foregroundStyle(.secondary)
-        }
+        .onAppear { entries = UnlockLog.load() }
+        .onReceive(store.$config) { _ in entries = UnlockLog.load() }
     }
 }

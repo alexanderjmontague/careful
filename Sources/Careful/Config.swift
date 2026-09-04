@@ -41,16 +41,28 @@ struct Config: Codable {
     /// When true, a running block cannot be shortened or its lists loosened from the UI.
     var strictMode: Bool = true
 
-    // MARK: Breaks
-    /// How long one break lasts, and how often one becomes available again.
-    var breakMinutes: Int = 10
-    var breakIntervalHours: Int = 4
-    /// Start of the most recent break. The cooldown is measured from this instant, so
-    /// ending a break early does not buy another one.
-    var breakStartedAt: Date? = nil
-    /// When the current break stops. Set separately so a break can be cut short
-    /// without disturbing the cooldown.
-    var breakEndsAt: Date? = nil
+    // MARK: Per-item unlocks
+    /// Temporary exceptions, one app or site each. Replaced the old "break" feature,
+    /// which opened everything at once — unlocking one thing keeps the rest blocked.
+    var activeUnlocks: [UnlockEntry] = []
+
+    // Synthesized Codable throws on a MISSING key even when the property has a default,
+    // so adding any new field would wipe the user's config on next launch. This init
+    // treats every key as optional and falls back to the default instead. Adding a field
+    // in future means adding one line here — never a migration.
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        blockedApps     = try c.decodeIfPresent(Set<String>.self,   forKey: .blockedApps)     ?? []
+        blockedSites    = try c.decodeIfPresent([String].self,      forKey: .blockedSites)    ?? []
+        schedules       = try c.decodeIfPresent([Schedule].self,    forKey: .schedules)       ?? []
+        lockedUntil     = try c.decodeIfPresent(Date.self,          forKey: .lockedUntil)
+        suppressedUntil = try c.decodeIfPresent(Date.self,          forKey: .suppressedUntil)
+        alwaysOn        = try c.decodeIfPresent(Bool.self,          forKey: .alwaysOn)        ?? false
+        strictMode      = try c.decodeIfPresent(Bool.self,          forKey: .strictMode)      ?? true
+        activeUnlocks   = try c.decodeIfPresent([UnlockEntry].self, forKey: .activeUnlocks)   ?? []
+    }
 
     static func load() -> Config {
         guard let data = try? Data(contentsOf: Paths.config) else { return Config() }
@@ -93,16 +105,11 @@ struct Config: Codable {
         return nil
     }
 
-    /// What the user sees: a break takes precedence over the underlying reason.
-    func activeReason(at date: Date = Date()) -> String? {
-        if let remaining = breakRemaining(at: date) {
-            return "On break — \(Format.duration(remaining)) left"
-        }
-        return blockReason(at: date)
-    }
+    /// What the user sees. Per-item unlocks do not change this: the block is still on,
+    /// one thing is just excepted from it.
+    func activeReason(at date: Date = Date()) -> String? { blockReason(at: date) }
 
-    /// Blocking is live only when a block is scheduled and no break is running.
-    var isEnforcing: Bool { blockReason() != nil && breakRemaining() == nil }
+    var isEnforcing: Bool { blockReason() != nil }
 
     /// End of the schedule window covering `date`, used to scope a `stop` to just
     /// this window rather than switching the schedule off for good.
@@ -115,34 +122,23 @@ struct Config: Codable {
         return end
     }
 
-    // MARK: - Breaks
+    // MARK: - Per-item unlocks
 
-    /// Seconds left in the current break, or nil when no break is running.
-    func breakRemaining(at date: Date = Date()) -> Int? {
-        guard let ends = breakEndsAt, ends > date else { return nil }
-        return Int(ends.timeIntervalSince(date))
+    func isUnlocked(app bundleID: String, at date: Date = Date()) -> Bool {
+        activeUnlocks.contains { $0.kind == .app && $0.target == bundleID && $0.isActive(at: date) }
     }
 
-    var onBreak: Bool { breakRemaining() != nil }
-
-    /// When the next break unlocks. Cooldown runs from the start of the last break,
-    /// so a 10-minute break every 4 hours means 4 hours between break starts.
-    func nextBreakAt() -> Date? {
-        guard let started = breakStartedAt else { return nil }
-        return started.addingTimeInterval(TimeInterval(breakIntervalHours * 3600))
+    /// `rule` is the blocklist entry as written (e.g. "x.com"), not the URL that matched it.
+    func isUnlocked(site rule: String, at date: Date = Date()) -> Bool {
+        activeUnlocks.contains { $0.kind == .site && $0.target == rule && $0.isActive(at: date) }
     }
 
-    /// Seconds until a break becomes available, or nil when one is available now.
-    func breakCooldownRemaining(at date: Date = Date()) -> Int? {
-        guard let next = nextBreakAt(), next > date else { return nil }
-        return Int(next.timeIntervalSince(date))
-    }
-
-    /// A break is only meaningful while something is actually being blocked.
-    func canTakeBreak(at date: Date = Date()) -> Bool {
-        blockReason(at: date) != nil
-            && breakRemaining(at: date) == nil
-            && breakCooldownRemaining(at: date) == nil
+    /// Drop expired unlocks. Returns true if anything changed so callers can save once.
+    @discardableResult
+    mutating func pruneUnlocks(at date: Date = Date()) -> Bool {
+        let before = activeUnlocks.count
+        activeUnlocks.removeAll { !$0.isActive(at: date) }
+        return activeUnlocks.count != before
     }
 
     /// True when the user must not be allowed to weaken the configuration.
@@ -152,7 +148,14 @@ struct Config: Codable {
         return schedules.contains { $0.isActive(at: Date()) }
     }
 
-    func matchedSite(for url: String) -> String? {
+    /// The blocklist rule that `url` hits, or nil if none — or if that rule is currently
+    /// unlocked. Checking the unlock here means every caller inherits it for free.
+    func matchedSite(for url: String, at date: Date = Date()) -> String? {
+        guard let rule = matchedRule(for: url) else { return nil }
+        return isUnlocked(site: rule, at: date) ? nil : rule
+    }
+
+    private func matchedRule(for url: String) -> String? {
         let haystack = url.lowercased()
         let host = Self.host(of: url)
 

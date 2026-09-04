@@ -29,15 +29,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private func refreshButton() {
         guard let button = statusItem.button else { return }
         let enforcing = store.config.isEnforcing
-        let symbol: String
-        if store.config.onBreak { symbol = "cup.and.saucer.fill" }
-        else { symbol = enforcing ? "lock.fill" : "lock.open" }
+        let symbol = enforcing ? "lock.fill" : "lock.open"
         button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: "Careful")
         button.image?.isTemplate = true
 
-        if let breakLeft = store.config.breakRemaining() {
-            button.title = " " + Format.duration(breakLeft)
-        } else if let until = store.config.lockedUntil, until > Date() {
+        if let until = store.config.lockedUntil, until > Date() {
             button.title = " " + Format.duration(Int(until.timeIntervalSinceNow))
         } else {
             button.title = ""
@@ -94,29 +90,20 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             menu.addItem(stop)
         }
 
-        // Break controls only make sense while something is actually blocked.
-        if store.config.blockReason() != nil {
+        // Unlocks only make sense while something is actually blocked.
+        if reason != nil {
             menu.addItem(.separator())
-            if store.config.onBreak {
-                let end = NSMenuItem(title: "End break early", action: #selector(endBreak), keyEquivalent: "")
-                end.target = self
-                menu.addItem(end)
-            } else if store.config.canTakeBreak() {
-                let take = NSMenuItem(
-                    title: "Take a \(store.config.breakMinutes) minute break",
-                    action: #selector(takeBreak),
-                    keyEquivalent: ""
-                )
-                take.target = self
-                menu.addItem(take)
-            } else if let cooldown = store.config.breakCooldownRemaining() {
-                let waiting = NSMenuItem(
-                    title: "Next break in \(Format.duration(cooldown))",
-                    action: nil,
-                    keyEquivalent: ""
-                )
-                waiting.isEnabled = false
-                menu.addItem(waiting)
+            let unlock = NSMenuItem(title: "Unlock one thing…", action: #selector(openUnlock), keyEquivalent: "u")
+            unlock.target = self
+            menu.addItem(unlock)
+
+            for entry in store.config.activeUnlocks where entry.isActive() {
+                let left = Format.duration(Int(entry.endsAt.timeIntervalSinceNow))
+                let item = NSMenuItem(title: "Lock \(entry.displayName) now (\(left) left)",
+                                      action: #selector(relock(_:)), keyEquivalent: "")
+                item.target = self
+                item.representedObject = entry.target
+                menu.addItem(item)
             }
         }
 
@@ -148,13 +135,13 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         refreshButton()
     }
 
-    @objc private func takeBreak() {
-        store.startBreak()
-        refreshButton()
+    @objc private func openUnlock() {
+        UnlockWindowController.shared.show(store: store)
     }
 
-    @objc private func endBreak() {
-        store.endBreak()
+    @objc private func relock(_ sender: NSMenuItem) {
+        guard let target = sender.representedObject as? String else { return }
+        store.relock(target: target)
         refreshButton()
     }
 

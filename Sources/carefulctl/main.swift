@@ -84,12 +84,8 @@ case "status":
     if let remaining = state["secondsRemaining"] as? Int {
         print("Remaining: \(remaining / 60)m \(remaining % 60)s")
     }
-    if let breakLeft = state["breakSecondsRemaining"] as? Int {
-        print("Break:     on break, \(breakLeft / 60)m \(breakLeft % 60)s left")
-    } else if state["breakAvailable"] as? Bool == true {
-        print("Break:     available now")
-    } else if let wait = state["breakAvailableInSeconds"] as? Int {
-        print("Break:     next in \(wait / 3600)h \((wait % 3600) / 60)m")
+    if let list = state["unlocks"] as? [[String: Any]], !list.isEmpty {
+        print("Unlocked:  " + list.map { "\($0["name"] ?? "?")" }.joined(separator: ", "))
     }
 
 case "start":
@@ -110,25 +106,26 @@ case "always":
     send("always \(value)")
     print("Careful: always-on \(value).")
 
-case "break":
-    let sub = args.count > 1 ? args[1].lowercased() : "start"
-    if sub == "end" {
-        send("break end")
-        print("Careful: break ended.")
-    } else {
-        let state = readState()
-        if state["onBreak"] as? Bool == true {
-            print("Careful: already on a break.")
-        } else if let wait = state["breakAvailableInSeconds"] as? Int {
-            print("Careful: no break due yet — next one in \(wait / 3600)h \((wait % 3600) / 60)m.")
-            exit(1)
-        } else if state["enforcing"] as? Bool != true, state["onBreak"] as? Bool != true {
-            print("Careful: nothing is blocked, so there is nothing to take a break from.")
-            exit(1)
-        } else {
-            send("break")
-            print("Careful: break started.")
-        }
+case "unlock":
+    // unlock <app|site> <target> <minutes> [reason...]
+    guard args.count > 3, ["app", "site"].contains(args[1].lowercased()), Int(args[3]) != nil else {
+        print("usage: careful unlock app|site <bundle-id|domain> <minutes> [reason]"); exit(1)
+    }
+    send("unlock " + args[1...].joined(separator: " "))
+    print("Careful: unlocked \(args[2]) for \(args[3]) minutes.")
+
+case "relock":
+    guard args.count > 1 else { print("usage: careful relock <bundle-id|domain>"); exit(1) }
+    send("relock \(args[1])")
+    print("Careful: relocked \(args[1]).")
+
+case "unlocks":
+    let state = readState()
+    let list = state["unlocks"] as? [[String: Any]] ?? []
+    if list.isEmpty { print("No active unlocks.") }
+    for u in list {
+        let secs = u["secondsRemaining"] as? Int ?? 0
+        print("  \(u["name"] ?? "?")  \(secs / 60)m \(secs % 60)s left  —  \(u["reason"] ?? "")")
     }
 
 case "block":
@@ -175,10 +172,6 @@ case "set":
     let key = args[1].lowercased()
     let value = args[2].lowercased()
     switch key {
-    case "break-minutes", "break-interval":
-        guard let n = Int(value), n > 0 else { print("Value must be a positive number."); exit(1) }
-        send("set \(key) \(n)")
-        print("Careful: \(key) = \(n).")
     case "strict":
         guard value == "on" || value == "off" else { print("usage: carefulctl set strict on|off"); exit(1) }
         send("set strict \(value)")

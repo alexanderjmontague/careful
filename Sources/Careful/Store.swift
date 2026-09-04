@@ -30,29 +30,33 @@ final class Store: ObservableObject {
         config.lockedUntil = end
     }
 
-    /// Start a break if one is due. Refused otherwise, so the cooldown cannot be skipped.
-    @discardableResult
-    func startBreak() -> Bool {
-        guard config.canTakeBreak() else { return false }
+    /// Unlock one app or site for `minutes`. The UI validates the reason before calling
+    /// this; carefulctl deliberately does not, because it is the escape hatch. Either way
+    /// the unlock is written to the permanent log.
+    func unlock(kind: UnlockKind, target: String, displayName: String, minutes: Int, reason: String) {
         let now = Date()
-        config.breakStartedAt = now
-        config.breakEndsAt = now.addingTimeInterval(TimeInterval(config.breakMinutes * 60))
-        vlog("break started — \(config.breakMinutes)m")
-        return true
+        let entry = UnlockEntry(
+            kind: kind, target: target, displayName: displayName,
+            minutes: max(1, minutes), reason: reason,
+            startedAt: now, endsAt: now.addingTimeInterval(TimeInterval(max(1, minutes) * 60)))
+        // One active unlock per target: a second request replaces the first.
+        config.activeUnlocks.removeAll { $0.kind == kind && $0.target == target }
+        config.activeUnlocks.append(entry)
+        UnlockLog.append(entry)
+        vlog("unlocked \(displayName) for \(minutes)m — \(reason)")
     }
 
-    /// End a break early. breakStartedAt is left alone so the cooldown still applies.
-    func endBreak() {
-        guard config.onBreak else { return }
-        config.breakEndsAt = Date()
-        vlog("break ended early")
+    /// End an unlock early. Matches on target so both the UI and the CLI can use it.
+    func relock(target: String) {
+        let before = config.activeUnlocks.count
+        config.activeUnlocks.removeAll { $0.target == target }
+        if config.activeUnlocks.count != before { vlog("relocked \(target)") }
     }
 
     func stopEverything() {
         config.lockedUntil = nil
         config.alwaysOn = false
-        config.breakStartedAt = nil
-        config.breakEndsAt = nil
+        config.activeUnlocks.removeAll()
         // Stand down for the rest of the current window instead of disabling schedules.
         // Flipping `enabled` off here used to erase the user's schedules permanently.
         config.suppressedUntil = config.currentWindowEnd()
@@ -78,14 +82,12 @@ final class Store: ObservableObject {
             "pid": ProcessInfo.processInfo.processIdentifier,
             "updated": ISO8601DateFormatter().string(from: Date()),
         ]
-        payload["onBreak"] = config.onBreak
-        if let remaining = config.breakRemaining() {
-            payload["breakSecondsRemaining"] = remaining
+        // Expired unlocks are dropped here because this runs every second anyway.
+        if config.pruneUnlocks() { config.save() }
+        payload["unlocks"] = config.activeUnlocks.map { entry -> [String: Any] in
+            ["kind": entry.kind.rawValue, "target": entry.target, "name": entry.displayName,
+             "secondsRemaining": Int(entry.endsAt.timeIntervalSinceNow), "reason": entry.reason]
         }
-        if let cooldown = config.breakCooldownRemaining() {
-            payload["breakAvailableInSeconds"] = cooldown
-        }
-        payload["breakAvailable"] = config.canTakeBreak()
         if let until = config.lockedUntil, until > Date() {
             payload["lockedUntil"] = ISO8601DateFormatter().string(from: until)
             payload["secondsRemaining"] = Int(until.timeIntervalSinceNow)
@@ -134,20 +136,21 @@ final class Store: ObservableObject {
             case "unblock-app":
                 if parts.count > 1 { config.blockedApps.remove(parts[1]) }
                 vlog("carefulctl: unblock-app \(parts.count > 1 ? parts[1] : "")")
-            case "break":
-                let sub = parts.count > 1 ? parts[1].lowercased() : "start"
-                if sub == "end" {
-                    endBreak()
-                } else if !startBreak() {
-                    vlog("carefulctl: break refused (not due, or nothing is blocked)")
+            case "unlock":
+                // unlock <app|site> <target> <minutes> [reason words...]
+                guard parts.count > 3, let kind = UnlockKind(rawValue: parts[1].lowercased()),
+                      let minutes = Int(parts[3]) else {
+                    vlog("carefulctl: bad unlock command"); break
                 }
+                let target = parts[2]
+                let reason = parts.count > 4 ? parts[4...].joined(separator: " ") : "via carefulctl"
+                let name = kind == .app ? AppResolver.name(for: target) : target
+                unlock(kind: kind, target: target, displayName: name, minutes: minutes, reason: reason)
+            case "relock":
+                if parts.count > 1 { relock(target: parts[1]) }
             case "set":
                 guard parts.count > 2 else { break }
                 switch parts[1].lowercased() {
-                case "break-minutes":
-                    if let n = Int(parts[2]), n > 0 { config.breakMinutes = n }
-                case "break-interval":
-                    if let n = Int(parts[2]), n > 0 { config.breakIntervalHours = n }
                 case "strict":
                     config.strictMode = parts[2].lowercased() == "on"
                 default: break

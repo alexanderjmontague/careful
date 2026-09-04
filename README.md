@@ -32,15 +32,21 @@ Three layers, none of which need root:
 While a block is running the menu bar shows no Quit item and no working Stop item, and the
 Settings window lets you add blocked apps and sites but not remove them.
 
-## Breaks
+## Unlocking one thing
 
-A break pauses blocking without ending the block — the timer or schedule keeps running
-underneath. Defaults to **10 minutes, once every 4 hours**, adjustable in Settings → Breaks
-or with `carefulctl set break-minutes 10` / `carefulctl set break-interval 4`.
+Instead of a break that opens everything, you unlock **one** app or site, for a chosen time,
+and you have to say why. Menu bar → *Unlock one thing…* (⌘U while a block is running).
 
-The cooldown is measured from the **start** of the last break, so ending one early does not
-earn you another. Break state is written to disk, so killing the app does not reset the
-cooldown either.
+The reason is checked before the button enables — it is the Mac stand-in for the physical
+card on iOS. A reason must be at least 40 characters and 6 words, mostly real dictionary
+words (macOS's spell checker decides), and not one phrase repeated. So `i need it because
+im tired` and `als;djaskdj` both fail; a plain sentence about what you actually need passes.
+The rules live in `ReasonValidator` and are covered by `./run-tests.sh`.
+
+Every unlock is appended to `unlock-log.json` and shown under Settings → Log, with the
+reason. There is deliberately no clear button — the log is the point.
+
+When the time runs out the item locks itself again. *Lock … now* in the menu ends it early.
 
 ## The way out
 
@@ -51,9 +57,10 @@ carefulctl status              is a block running, and how long is left
 carefulctl start 50            block for 50 minutes
 carefulctl stop                end the block, even when locked
 carefulctl always on|off       open-ended block
-carefulctl break               take a break, if one is due
-carefulctl break end           end the current break early
-carefulctl set <key> <value>   break-minutes | break-interval | strict on|off
+carefulctl unlock app|site <target> <min> [reason]   unlock one thing — no reason check, this is the escape hatch
+carefulctl relock <target>     end an unlock early
+carefulctl unlocks             list active unlocks
+carefulctl set strict on|off   strict mode
 carefulctl reload              re-read config.json from disk
 carefulctl block <domain>      add a site
 carefulctl unblock <domain>    remove a site
@@ -109,6 +116,15 @@ asks politely and logs once, a second attempt within 1.5s is suppressed, and a l
 escalates to `forceTerminate()`. Without that, the launch notification and the 1-second sweep
 both fired on the same still-quitting app and the log showed three "Closed" lines for one
 launch.
+
+## Adding a config field
+
+`Config` has a hand-written `init(from:)` that treats every key as optional. This is not
+optional politeness: Swift's synthesized decoder throws on a *missing* key even when the
+property has a default, and that failure replaces the whole config with an empty one. It
+has wiped the blocklist twice. A new field is one `decodeIfPresent` line in that init — and
+if decoding ever does fail, the original file is saved as `config.unreadable-<time>.json`
+rather than discarded.
 
 ## Editing config by hand
 

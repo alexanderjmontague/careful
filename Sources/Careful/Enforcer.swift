@@ -94,7 +94,8 @@ final class Enforcer: ObservableObject {
     private func handle(_ app: NSRunningApplication) {
         guard enforcing, let bundleID = app.bundleIdentifier else { return }
         guard !Self.protected.contains(bundleID) else { return }
-        guard store.config.blockedApps.contains(bundleID) else { return }
+        guard store.config.blockedApps.contains(bundleID),
+              !store.config.isUnlocked(app: bundleID) else { return }
         close(app, bundleID: bundleID)
     }
 
@@ -131,6 +132,7 @@ final class Enforcer: ObservableObject {
         for app in NSWorkspace.shared.runningApplications {
             guard let bundleID = app.bundleIdentifier,
                   blocked.contains(bundleID),
+                  !store.config.isUnlocked(app: bundleID),
                   !Self.protected.contains(bundleID)
             else { continue }
             close(app, bundleID: bundleID)
