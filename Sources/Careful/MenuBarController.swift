@@ -59,25 +59,29 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        for minutes in [25, 50, 90] {
-            let item = NSMenuItem(
-                title: "Block for \(minutes) minutes",
-                action: #selector(startTimer(_:)),
+        // Starting a block only makes sense when none is running. Once one is active,
+        // the menu is for getting out of it (unlock one thing, stop), not stacking another.
+        if reason == nil {
+            for minutes in [25, 50, 90] {
+                let item = NSMenuItem(
+                    title: "Block for \(minutes) minutes",
+                    action: #selector(startTimer(_:)),
+                    keyEquivalent: ""
+                )
+                item.target = self
+                item.tag = minutes
+                menu.addItem(item)
+            }
+
+            let always = NSMenuItem(
+                title: "Block until I stop it",
+                action: #selector(toggleAlwaysOn),
                 keyEquivalent: ""
             )
-            item.target = self
-            item.tag = minutes
-            menu.addItem(item)
+            always.target = self
+            always.state = store.config.alwaysOn ? .on : .off
+            menu.addItem(always)
         }
-
-        let always = NSMenuItem(
-            title: "Block until I stop it",
-            action: #selector(toggleAlwaysOn),
-            keyEquivalent: ""
-        )
-        always.target = self
-        always.state = store.config.alwaysOn ? .on : .off
-        menu.addItem(always)
 
         // A locked block offers no stop control at all — that is the point of the app.
         if reason != nil {
