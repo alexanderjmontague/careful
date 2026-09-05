@@ -185,6 +185,10 @@ case "resume":
     send("resume")
     print("Careful: schedules re-enabled.")
 
+case "settings":
+    send("settings")
+    print("Careful: opening Settings.")
+
 case "reload":
     send("reload")
     print("Careful: config reloaded from disk.")

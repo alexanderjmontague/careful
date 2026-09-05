@@ -11,8 +11,8 @@ struct SettingsView: View {
             SchedulesTab(store: store).tabItem { Label("Schedule", systemImage: "calendar") }
             LogTab(store: store).tabItem { Label("Log", systemImage: "list.bullet.rectangle") }
         }
-        .padding(16)
-        .frame(minWidth: 600, minHeight: 500)
+        .padding(20)
+        .frame(minWidth: 640, minHeight: 520)
     }
 }
 
@@ -21,14 +21,33 @@ private struct LockBanner: View {
     let locked: Bool
     var body: some View {
         if locked {
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 Image(systemName: "lock.fill")
                 Text("A block is running. You can add items but not remove them.")
+                Spacer(minLength: 0)
             }
             .font(.callout)
             .foregroundStyle(.secondary)
-            .padding(.bottom, 4)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
         }
+    }
+}
+
+/// The trailing "−" on list rows. Quiet until hovered, greyed while a block is locked.
+private struct RemoveButton: View {
+    let disabled: Bool
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "minus.circle")
+                .foregroundStyle(.secondary)
+                .imageScale(.large)
+        }
+        .buttonStyle(.borderless)
+        .disabled(disabled)
+        .help(disabled ? "Locked while a block is running" : "Remove")
     }
 }
 
@@ -45,7 +64,7 @@ private struct AppsTab: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             LockBanner(locked: store.config.isLocked)
 
             HStack {
@@ -66,22 +85,22 @@ private struct AppsTab: View {
             } else {
                 List {
                     ForEach(blocked, id: \.self) { bundleID in
-                        HStack {
+                        HStack(spacing: 10) {
                             Image(nsImage: AppResolver.icon(for: bundleID))
-                                .resizable().frame(width: 20, height: 20)
-                            VStack(alignment: .leading, spacing: 1) {
+                                .resizable().frame(width: 26, height: 26)
+                            VStack(alignment: .leading, spacing: 2) {
                                 Text(AppResolver.name(for: bundleID))
-                                Text(bundleID).font(.caption2).foregroundStyle(.tertiary)
+                                Text(bundleID).font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
-                            Button {
+                            RemoveButton(disabled: store.config.isLocked) {
                                 store.config.blockedApps.remove(bundleID)
-                            } label: { Image(systemName: "minus.circle") }
-                            .buttonStyle(.borderless)
-                            .disabled(store.config.isLocked)
+                            }
                         }
+                        .padding(.vertical, 3)
                     }
                 }
+                .listStyle(.inset)
             }
         }
         .sheet(isPresented: $showPicker) { AppPickerSheet(store: store) }
@@ -156,7 +175,7 @@ private struct SitesTab: View {
     ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             LockBanner(locked: store.config.isLocked)
 
             HStack {
@@ -167,6 +186,7 @@ private struct SitesTab: View {
             }
 
             HStack(spacing: 6) {
+                Text("Add a set:").font(.callout).foregroundStyle(.secondary)
                 ForEach(Self.presets, id: \.0) { name, sites in
                     Button(name) {
                         for site in sites where !store.config.blockedSites.contains(site) {
@@ -179,20 +199,24 @@ private struct SitesTab: View {
 
             List {
                 ForEach(store.config.blockedSites, id: \.self) { site in
-                    HStack {
-                        Text(site).font(.system(.body, design: .monospaced))
+                    HStack(spacing: 10) {
+                        Image(systemName: "globe")
+                            .foregroundStyle(.secondary)
+                            .frame(width: 26)
+                        Text(site)
                         Spacer()
-                        Button {
+                        RemoveButton(disabled: store.config.isLocked) {
                             store.config.blockedSites.removeAll { $0 == site }
-                        } label: { Image(systemName: "minus.circle") }
-                        .buttonStyle(.borderless)
-                        .disabled(store.config.isLocked)
+                        }
                     }
+                    .padding(.vertical, 4)
                 }
             }
+            .listStyle(.inset)
 
             Text("Matches the domain and its subdomains. Works in Chrome, Dia, Arc, Brave, Edge, Comet, Vivaldi, Opera and Safari.")
                 .font(.caption).foregroundStyle(.secondary)
+                .padding(.top, 2)
         }
     }
 
@@ -215,7 +239,7 @@ private struct SchedulesTab: View {
     private static let dayLabels = ["S", "M", "T", "W", "T", "F", "S"]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             LockBanner(locked: store.config.isLocked)
 
             List {
@@ -247,9 +271,10 @@ private struct SchedulesTab: View {
                             MinutePicker(label: "to", minutes: $schedule.endMinute)
                         }
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 6)
                 }
             }
+            .listStyle(.inset)
 
             Button("Add schedule") {
                 store.config.schedules.append(Schedule(name: "Focus block"))
@@ -318,8 +343,9 @@ private struct LogTab: View {
                         Text(Self.stamp.string(from: entry.startedAt))
                             .font(.caption2).foregroundStyle(.tertiary)
                     }
-                    .padding(.vertical, 3)
+                    .padding(.vertical, 4)
                 }
+                .listStyle(.inset)
             }
         }
         .onAppear { entries = UnlockLog.load() }

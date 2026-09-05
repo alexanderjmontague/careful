@@ -21,6 +21,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         statusItem.menu = menu
         refreshButton()
 
+        NotificationCenter.default.addObserver(
+            forName: .carefulOpenSettings, object: nil, queue: .main
+        ) { [weak self] _ in self?.openSettings() }
+
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             self?.refreshButton()
         }

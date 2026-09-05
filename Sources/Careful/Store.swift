@@ -156,6 +156,10 @@ final class Store: ObservableObject {
                 default: break
                 }
                 vlog("carefulctl: set \(parts[1]) \(parts[2])")
+            case "settings":
+                // The window lives in MenuBarController; decouple via a notification so
+                // the store stays UI-free.
+                NotificationCenter.default.post(name: .carefulOpenSettings, object: nil)
             case "resume":
                 resumeSchedules()
             case "reload":
@@ -171,4 +175,8 @@ final class Store: ObservableObject {
         }
         publishState(enforcing: config.isEnforcing)
     }
+}
+
+extension Notification.Name {
+    static let carefulOpenSettings = Notification.Name("careful.openSettings")
 }
