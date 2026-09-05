@@ -12,7 +12,7 @@
   <a href="#how-it-works">How it works</a> ·
   <a href="#the-way-out">The way out</a> ·
   <a href="#design-decisions">Design decisions</a> ·
-  <a href="../careful-ios">Careful for iPhone</a>
+  <a href="https://github.com/alexanderjmontague/careful-ios">Careful for iPhone</a>
 </p>
 
 ---
