@@ -26,12 +26,23 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         }
     }
 
+    private static let menuBarIcon: NSImage? = {
+        guard let url = Bundle.main.url(forResource: "MenuBarIcon", withExtension: "png"),
+              let image = NSImage(contentsOf: url) else {
+            return NSImage(systemSymbolName: "hand.point.up.fill", accessibilityDescription: "Careful")
+        }
+        image.isTemplate = true
+        image.accessibilityDescription = "Careful"
+        return image
+    }()
+
     private func refreshButton() {
         guard let button = statusItem.button else { return }
         let enforcing = store.config.isEnforcing
-        let symbol = enforcing ? "lock.fill" : "lock.open"
-        button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: "Careful")
-        button.image?.isTemplate = true
+        // One mark, always: the logo. Template rendering lets macOS tint it for light
+        // and dark menu bars; state is shown by dimming it when nothing is blocked.
+        button.image = Self.menuBarIcon
+        button.alphaValue = enforcing ? 1.0 : 0.45
 
         if let until = store.config.lockedUntil, until > Date() {
             button.title = " " + Format.duration(Int(until.timeIntervalSinceNow))

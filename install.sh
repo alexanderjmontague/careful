@@ -55,7 +55,7 @@ launchctl kickstart -k "gui/$UID_NUM/$LABEL"
 
 sleep 2
 if pgrep -x Careful >/dev/null; then
-  echo "==> Careful is running. Look for the lock icon in your menu bar."
+  echo "==> Careful is running. Look for the Careful hand in your menu bar."
 else
   echo "==> Careful did not start. Check $SUPPORT/careful.log"
   exit 1
@@ -64,7 +64,7 @@ fi
 cat <<'NOTE'
 
 Installed.
-  Menu bar   lock icon, top right
+  Menu bar   the hand icon, top right
   CLI        carefulctl status | start <min> | stop | quit | launch | log
 
 The first time Careful blocks a site, macOS will ask to let it control that
