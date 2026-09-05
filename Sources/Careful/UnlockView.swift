@@ -16,7 +16,18 @@ struct UnlockView: View {
     @State private var choice: Choice?
     @State private var durationValue: Double = 5
     @State private var durationInHours = false
-    @State private var reason = ""
+    @State private var reason: String
+
+    /// `previewReason` pre-fills the form. Used only by previews and the README renderer;
+    /// the real menu path always starts empty.
+    init(store: Store, previewReason: String = "", onDone: @escaping () -> Void) {
+        self.store = store
+        self.onDone = onDone
+        _reason = State(initialValue: previewReason)
+        if !previewReason.isEmpty, let first = store.config.blockedApps.sorted().first {
+            _choice = State(initialValue: .app(first))
+        }
+    }
 
     private var chosenMinutes: Int {
         let v = Int(durationValue.rounded())
@@ -100,7 +111,8 @@ struct UnlockView: View {
                 }
                 ForEach(store.config.blockedSites, id: \.self) { site in
                     HStack {
-                        Text(site).font(.system(.body, design: .monospaced))
+                        Image(systemName: "globe").foregroundStyle(.secondary).frame(width: 18)
+                        Text(site)
                         Spacer()
                         if store.config.isUnlocked(site: site) {
                             Text("open").font(.caption).foregroundStyle(.orange)
