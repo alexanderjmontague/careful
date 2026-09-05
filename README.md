@@ -161,13 +161,14 @@ rm -rf ~/Library/Application\ Support/Careful
 ## Icon
 
 The app icon is `Resources/careful_app_icon.png` (1024×1024); `build.sh` compiles it into an
-asset catalog. The menu bar mark is `Resources/careful_small_icon.svg`, rasterized to
-`MenuBarIcon.png` / `@2x` and loaded as a **template image** so macOS tints it for light and
+asset catalog. The menu bar mark is `Resources/careful_small_icon.svg`. `MenuBarIcon.svg` is the same
+paths with the viewBox cropped to the glyph and sized to 19pt; it is loaded as an SVG
+(vector, sharp at any scale) and as a **template image** so macOS tints it for light and
 dark menu bars — which is why the SVG must stay pure black on transparent. The mark is
 dimmed to 45% when nothing is blocked; that is the only state indicator on it.
 
-To change either, replace the file and rebuild. To re-rasterize the SVG after editing it, run
-the small script in the git history of this section or ask Claude.
+To change either, replace the file and rebuild. After editing the source SVG, regenerate `MenuBarIcon.svg` (crop the viewBox to the
+glyph bounds, keep the paths) — the script is in this repo's git history under this commit.
 
 macOS 26 draws a light plate behind any app icon not shipped in Icon Composer format.
 That is cosmetic and affects most third-party apps.

@@ -27,7 +27,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     private static let menuBarIcon: NSImage? = {
-        guard let url = Bundle.main.url(forResource: "MenuBarIcon", withExtension: "png"),
+        // The SVG is loaded directly: NSImage renders it as a vector, so it is sharp at
+        // every scale. PNGs via contentsOf: only ever load the 1x file — the @2x pairing
+        // is a bundle-loader feature — which is what made the first version pixelated.
+        // The SVG's viewBox is cropped to the glyph so no padding steals menu bar height.
+        guard let url = Bundle.main.url(forResource: "MenuBarIcon", withExtension: "svg"),
               let image = NSImage(contentsOf: url) else {
             return NSImage(systemSymbolName: "hand.point.up.fill", accessibilityDescription: "Careful")
         }

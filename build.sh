@@ -35,7 +35,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-cp "$ROOT/Resources/MenuBarIcon.png" "$ROOT/Resources/MenuBarIcon@2x.png" "$APP/Contents/Resources/"
+cp "$ROOT/Resources/MenuBarIcon.svg" "$APP/Contents/Resources/"
 
 echo "==> Compiling asset catalog"
 # macOS 26 gives bare .icns files a generic light plate. Shipping a compiled
