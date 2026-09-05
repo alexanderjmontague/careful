@@ -194,7 +194,7 @@ rm -rf ~/Library/Application\ Support/Careful
 ## Careful for iPhone
 
 The same idea with a different key: on the phone, unlocking one thing means tapping a
-physical NFC card. See [Careful for iOS](../careful-ios).
+physical NFC card. See [Careful for iOS](https://github.com/alexanderjmontague/careful-ios).
 
 ## Credit
 
