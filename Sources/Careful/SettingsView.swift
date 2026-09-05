@@ -23,7 +23,7 @@ private struct LockBanner: View {
         if locked {
             HStack(spacing: 8) {
                 Image(systemName: "lock.fill")
-                Text("A block is running. You can add items but not remove them.")
+                Text("A block is running. You can add or tighten, but not remove or loosen.")
                 Spacer(minLength: 0)
             }
             .font(.callout)
@@ -244,31 +244,50 @@ private struct SchedulesTab: View {
 
             List {
                 ForEach($store.config.schedules) { $schedule in
+                    // While locked, every control below may only tighten the schedule.
+                    // Removing a day, moving the start later, the end earlier, switching it
+                    // off, or deleting it would all end or shrink a running block — which is
+                    // exactly the back door the lock exists to close.
+                    let locked = store.config.isLocked
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             TextField("Name", text: $schedule.name).textFieldStyle(.roundedBorder)
-                            Toggle("", isOn: $schedule.enabled)
-                                .labelsHidden()
-                                .disabled(store.config.isLocked && schedule.isActive(at: Date()))
+                            Toggle("", isOn: Binding(
+                                get: { schedule.enabled },
+                                set: { on in if on || !locked { schedule.enabled = on } }
+                            ))
+                            .labelsHidden()
+                            .disabled(locked && schedule.enabled)
+                            .help(locked && schedule.enabled ? "Locked while a block is running" : "")
                             Button {
                                 store.config.schedules.removeAll { $0.id == schedule.id }
                             } label: { Image(systemName: "trash") }
                             .buttonStyle(.borderless)
-                            .disabled(store.config.isLocked && schedule.isActive(at: Date()))
+                            .disabled(locked)
+                            .help(locked ? "Locked while a block is running" : "Delete schedule")
                         }
                         HStack(spacing: 4) {
                             ForEach(1...7, id: \.self) { day in
+                                let on = schedule.weekdays.contains(day)
                                 Button(Self.dayLabels[day - 1]) {
-                                    if schedule.weekdays.contains(day) { schedule.weekdays.remove(day) }
+                                    if on { if !locked { schedule.weekdays.remove(day) } }
                                     else { schedule.weekdays.insert(day) }
                                 }
                                 .buttonStyle(.bordered)
                                 .controlSize(.small)
-                                .tint(schedule.weekdays.contains(day) ? .accentColor : .secondary)
+                                .tint(on ? .accentColor : .secondary)
+                                .disabled(locked && on)
                             }
                             Spacer()
-                            MinutePicker(label: "from", minutes: $schedule.startMinute)
-                            MinutePicker(label: "to", minutes: $schedule.endMinute)
+                            // Start may only move earlier and end only later while locked.
+                            MinutePicker(label: "from", minutes: Binding(
+                                get: { schedule.startMinute },
+                                set: { schedule.startMinute = locked ? min($0, schedule.startMinute) : $0 }
+                            ))
+                            MinutePicker(label: "to", minutes: Binding(
+                                get: { schedule.endMinute },
+                                set: { schedule.endMinute = locked ? max($0, schedule.endMinute) : $0 }
+                            ))
                         }
                     }
                     .padding(.vertical, 6)
