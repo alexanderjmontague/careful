@@ -1,30 +1,26 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/banner-dark.png">
-    <img src="docs/banner.png" alt="Careful" width="720">
+    <img src="docs/banner.png" alt="Careful" width="480">
   </picture>
 </p>
-
-<p align="center"><strong>A distraction blocker for the Mac that never lets you unblock everything at once.</strong></p>
 
 <p align="center">
   <a href="#install">Install</a> ·
   <a href="#how-it-works">How it works</a> ·
-  <a href="#the-way-out">The way out</a> ·
-  <a href="#design-decisions">Design decisions</a> ·
-  <a href="https://github.com/alexanderjmontague/careful-ios">Careful for iPhone</a>
+  <a href="#the-command-line">Command line</a> ·
+  <a href="#why-some-things-are-the-way-they-are">Design notes</a> ·
+  <a href="https://github.com/alexanderjmontague/careful-ios">iPhone version</a>
 </p>
 
 ---
 
-Most blockers have a big red button: *pause everything*. You press it to check one email
-and twenty minutes later you're three tabs deep in something else. Careful doesn't have that
-button.
+Careful is a distraction blocker for the Mac. It blocks apps and websites on a schedule,
+and it doesn't have a "pause everything" button.
 
-Instead, when you need something, you **unlock exactly one app or website, for a time you
-choose, and you write down why.** Everything else stays blocked. When the time runs out, it
-locks itself again. Every unlock and every reason goes into a log you can read back later —
-which turns out to be surprisingly effective at making you honest with yourself.
+When you need something, you unlock one app or one website, for a length of time you pick,
+and you type a reason. The rest stays blocked. When the time is up it locks again by itself.
+Every unlock and its reason is kept in a log you can read later.
 
 <p align="center">
   <picture>
@@ -33,25 +29,22 @@ which turns out to be surprisingly effective at making you honest with yourself.
   </picture>
 </p>
 
-The reason has to be a real sentence. Forty characters, six words, mostly words the spell
-checker recognises, and not the same phrase repeated. `i need it because im tired` doesn't
-pass. `als;djaskdj` doesn't pass. A plain sentence about what you actually need does.
+The reason has to be an actual sentence: at least 40 characters and 6 words, mostly real
+words according to the system spell checker, and not one phrase repeated. `i need it
+because im tired` gets rejected, so does `als;djaskdj`.
 
-## What it does
+## Features
 
-- **Blocks apps.** Anything on the list is quit the moment it opens — including apps that
-  launch in the background, and apps that were already open when the block started.
-- **Blocks websites, inside the browser.** Careful watches every open tab in Chrome, Dia,
-  Arc, Brave, Edge, Comet, Vivaldi, Opera and Safari, and sends a blocked page to a local
-  block screen. You keep the tab and the window; you just don't get the site.
-- **Runs on a schedule.** Set the hours and weekdays; the block turns itself on. A timer for
-  a one-off session works too.
-- **Is hard to quit.** No Dock icon, no ⌘Q, no entry in Force Quit. Kill it and launchd
-  brings it back in about two seconds. While a block is locked, the settings can be
-  tightened but never loosened — you can add a site, but not remove one, and you can add
-  a day to a schedule, but not take one away.
-- **Has one deliberate way out**, described below, because a blocker you can never escape
-  is a blocker you'll eventually uninstall.
+- **App blocking.** Blocked apps are quit as soon as they open. This includes apps that
+  launch in the background and apps that were already running when the block started.
+- **Website blocking inside the browser.** Careful watches open tabs in Chrome, Dia, Arc,
+  Brave, Edge, Comet, Vivaldi, Opera and Safari, and redirects blocked pages to a local
+  block screen. The tab stays open.
+- **Schedules.** Pick hours and weekdays. There's also a one-off timer.
+- **Hard to quit.** No Dock icon, no ⌘Q, not listed in Force Quit. If the process is
+  killed, launchd restarts it within a couple of seconds. While a block is running you can
+  add to the lists and schedules but not remove from them.
+- **A command line tool** that can do anything, including end a block. See below.
 
 <p align="center">
   <picture>
@@ -62,7 +55,7 @@ pass. `als;djaskdj` doesn't pass. A plain sentence about what you actually need 
 
 ## Install
 
-Requires macOS 14 or later and Xcode's command line tools. No admin password.
+macOS 14 or later, with Xcode's command line tools. No admin password needed.
 
 ```bash
 git clone https://github.com/alexanderjmontague/careful
@@ -70,43 +63,41 @@ cd careful
 ./build.sh && ./install.sh
 ```
 
-That installs `Careful.app`, the `carefulctl` command line tool (with a `careful` alias),
-and a LaunchAgent that starts it at login and keeps it alive. Look for the hand in your
-menu bar.
+This installs `Careful.app`, the `carefulctl` tool (aliased as `careful`), and a LaunchAgent
+that starts it at login. It shows up as a hand icon in the menu bar.
 
-The first time Careful blocks a site in a given browser, macOS asks for permission to
-control that browser. Approve it under **System Settings → Privacy & Security →
-Automation** — not Accessibility — or website blocking silently does nothing.
+The first time a site is blocked in a given browser, macOS will ask for permission to
+control that browser. Allow it under **System Settings → Privacy & Security → Automation**.
+Website blocking does nothing until you do.
 
 ## How it works
 
-**Apps.** Careful listens for app launches and activations, and also sweeps every running
-process once a second, because launch notifications miss apps that start in the background
-or were already open. A blocked app is asked to quit; if it's still there on the next
-sweep, it's force-quit. Finder, the Dock and the login window are permanently exempt.
+**Apps.** Careful listens for app launch and activation notifications and also checks every
+running process once a second, since notifications miss background launches and
+already-running apps. A blocked app gets a quit request; if it's still around on the next
+pass it's force-quit. Finder, the Dock and the login window are never touched.
 
-**Websites.** AppleScript reads the URL of every tab in every window of every running
-browser. Anything matching a blocked domain is redirected to a local block page. The
-frontmost browser is checked every 0.6 seconds; the others every 3 seconds, since
-switching tabs inside a browser fires no system notification. A bare domain matches that
-host and its subdomains — `x.com` catches `mobile.x.com` and nothing else. Rules with a
-path or query are matched as substrings.
+**Websites.** AppleScript reads the URL of every tab in every window of each running
+browser. Matching tabs are redirected to a local block page. The frontmost browser is
+checked every 0.6 seconds and the others every 3 seconds, because switching tabs doesn't
+fire any system notification. A plain domain matches that host and its subdomains and
+nothing else (`x.com` matches `mobile.x.com` but not `dropbox.com`). Rules containing a path
+or query are matched as substrings.
 
-**Unlocks.** Each unlock is a single app or a single site rule with an expiry. The enforcer
-consults the unlock list on every sweep, so a blocked app stays blocked while its sibling
-is open. Expired unlocks are dropped automatically. Every unlock is appended to
-`unlock-log.json` and shown under Settings → Log. There is no clear button on purpose.
+**Unlocks.** An unlock is one app or one site rule plus an expiry time. The enforcer skips
+unlocked items on every pass, so unlocking one app doesn't affect the others. Expired
+unlocks are removed automatically. Each one is appended to `unlock-log.json` and shown
+under Settings → Log. There's no button to clear the log.
 
-## The way out
+## The command line
 
-`carefulctl` ignores every lock. That is intentional: it's the door you keep the key to,
-and it's how you let an AI assistant or a script let you out without giving the app's own
-UI a back door.
+`carefulctl` isn't subject to any of the locks. That's how you get out if you need to, and
+it's also how a script or an assistant can manage Careful without the app itself having a
+back door.
 
 ```
-careful status                       what's blocked, what's running, how long is left
+careful status                       what's blocked, what's running, time left
 careful unlock app|site <target> <min> [reason]
-                                     unlock one thing — no reason check here
 careful relock <target>              end an unlock early
 careful unlocks                      list active unlocks
 careful start <minutes>              start a timed block
@@ -117,70 +108,62 @@ careful block-app <id> / unblock-app edit the app list (bundle identifiers)
 careful list                         show both lists
 careful settings                     open the Settings window
 careful quit                         stop the block, unload the agent, quit the app
-careful launch                       bring it back
+careful launch                       start it again
 careful log [n]                      recent activity
 ```
 
-`careful quit` is the full stop — it unloads the LaunchAgent first, so nothing brings the
-process back.
+`careful quit` unloads the LaunchAgent first, so nothing restarts the process.
 
-## Design decisions
+## Why some things are the way they are
 
-Things that look odd until you know why.
+- **Every browser script starts with `if application "X" is running`.** `tell application`
+  launches the app if it isn't running. Without the check, quitting Chrome caused Careful
+  to reopen it every few seconds to read its tabs; Chrome would open with no windows and
+  exit again, over and over.
+- **Dia tabs are closed instead of redirected.** Dia's scripting dictionary says `URL` is
+  writable, but writes are ignored. Closing works.
+- **Redirects re-check the tab's URL inside the same script.** Tabs are addressed by index,
+  and indexes shift as soon as any tab closes. Without the check, the wrong tab could get
+  redirected.
+- **Kill attempts are tracked per process.** `terminate()` only asks; both the notification
+  handler and the one-second sweep would fire again while the app was still shutting down.
+  Now it's one request, then a force-quit if the app is still there.
+- **`stop` doesn't turn schedules off.** It records a stand-down time for the current
+  window. An earlier version disabled every schedule, which deleted the user's setup.
+- **`Config` decodes by hand.** Synthesized `Codable` fails on a missing key even when the
+  property has a default value, and that failure was replacing the whole config with an
+  empty one. Each field is now `decodeIfPresent`, and an unreadable config is saved to a
+  backup file instead of dropped.
+- **The menu bar icon is an SVG.** `NSImage(contentsOf:)` doesn't load `@2x` variants, so a
+  PNG was blurry on Retina displays. The SVG is drawn as a vector.
+- **Reasons are checked with `NSSpellChecker`.** It's already on every Mac.
 
-- **`if application "X" is running` around every browser script.** `tell application`
-  *launches* an app that isn't running. Without the guard, quitting Chrome caused Careful
-  to reopen it every few seconds to read its tabs. Chrome would find no windows and exit,
-  and the cycle repeated — a Dock icon flickering forever.
-- **Dia's tabs are closed, not redirected.** Dia's scripting dictionary declares `URL` as
-  read-write, but writes are silently dropped. Closing works. Every other browser gets the
-  gentler redirect.
-- **Tab redirects re-check the URL inside the same script.** Tabs are addressed by index,
-  and an index goes stale the instant any tab closes. Re-checking prevents redirecting an
-  innocent tab to the block page.
-- **Kills are deduplicated per process.** `terminate()` only *requests* a quit, so a
-  notification and the one-second sweep would both fire again while the app was still on
-  its way out. One request, then force-quit on the retry.
-- **`stop` doesn't disable schedules.** It stands down for the remainder of the current
-  window via a timestamp. An earlier version set every schedule to disabled, which quietly
-  erased configuration. `resume` clears it.
-- **`Config` has a hand-written decoder.** Swift's synthesized `Codable` throws on a
-  *missing* key even when the property has a default, and that failure replaced the whole
-  config with an empty one. Adding a field is now one `decodeIfPresent` line, and an
-  unreadable file is backed up rather than discarded.
-- **The menu bar mark is loaded from an SVG.** `NSImage(contentsOf:)` never picks up an
-  `@2x` sibling, so a PNG was blurry on Retina. The SVG renders as a vector at any scale,
-  and its viewBox is cropped to the glyph so no padding steals height.
-- **Reasons are checked with the system spell checker.** It's the cheapest available
-  "is this real language" oracle, and it's already on every Mac.
+## Limitations
 
-## Limits, honestly
-
-- Verified working in Chrome and Dia. The other browsers are wired up the same way but
-  were not tested by hand.
-- Firefox and Zen can't be supported this way — no AppleScript access to tabs. Block the
-  whole app instead.
+- Tested in Chrome and Dia. The other browsers use the same scripts but haven't been
+  checked by hand.
+- Firefox and Zen don't expose tabs to AppleScript, so they can't be supported this way.
+  Block the app instead.
 - No network-level blocking. A blocked site is still reachable from a native app or a
-  browser Careful can't script. Block the app.
-- There is a window of up to ~0.6 seconds before a blocked page is redirected.
-- `carefulctl` has no authentication. Anyone at your terminal can stop a block. That's the
-  design, not an oversight.
-- The app is ad-hoc signed, so macOS re-asks for Automation permission after every
-  rebuild. Install once and leave it.
-- macOS 26 draws a light plate behind any app icon not shipped in Icon Composer format.
-  Cosmetic; it affects most third-party apps right now.
+  browser Careful can't script.
+- Up to about 0.6 seconds of a blocked page can show before the redirect.
+- `carefulctl` has no authentication.
+- The app is ad-hoc signed, so macOS asks for Automation permission again after each
+  rebuild.
+- macOS 26 draws a light plate behind app icons that aren't in Icon Composer format. This
+  affects most third-party apps.
 
 ## Development
 
 ```bash
-./build.sh        # compiles Careful.app and carefulctl into ./build
-./run-tests.sh    # domain matcher and reason validator, against the real Config.swift
-./install.sh      # installs and (re)starts the LaunchAgent
+./build.sh        # builds Careful.app and carefulctl into ./build
+./run-tests.sh    # domain matcher and reason validator tests
+./install.sh      # installs and restarts the LaunchAgent
 ```
 
-`Sources/Careful` is the app; `Sources/carefulctl` is the CLI. The icon is
-`Resources/careful_app_icon.png`; the menu bar mark is `Resources/careful_small_icon.svg`,
-which must stay pure black on transparent so macOS can tint it as a template image.
+`Sources/Careful` is the app, `Sources/carefulctl` is the CLI. The app icon is
+`Resources/careful_app_icon.png`. The menu bar icon is `Resources/careful_small_icon.svg`
+and needs to stay black on transparent so macOS can tint it.
 
 ## Uninstall
 
@@ -191,13 +174,13 @@ rm -f ~/Library/LaunchAgents/com.alexandermontague.careful.plist
 rm -rf ~/Library/Application\ Support/Careful
 ```
 
-## Careful for iPhone
+## iPhone version
 
-The same idea with a different key: on the phone, unlocking one thing means tapping a
-physical NFC card. See [Careful for iOS](https://github.com/alexanderjmontague/careful-ios).
+[Careful for iOS](https://github.com/alexanderjmontague/careful-ios) works the same way, except
+unlocking requires tapping an NFC card instead of writing a reason.
 
-## Credit
+## Credits
 
-The browser-scripting shape came from [appjail](https://github.com/devsemih/appjail) (MIT).
+The browser scripting approach came from [appjail](https://github.com/devsemih/appjail) (MIT).
 
-MIT licensed. Copyright © 2026 Alexander Montague.
+MIT license. Copyright © 2026 Alexander Montague.
