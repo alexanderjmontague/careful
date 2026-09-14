@@ -46,7 +46,7 @@ regression, not a feature. The old "break" feature was removed for exactly this 
 ## Build and test
 
 ```bash
-./build.sh        # ad-hoc signed; macOS will re-ask for Automation permission after each rebuild
+./build.sh        # signs with your certificate if one is in the keychain (see rule above)
 ./run-tests.sh    # domain matcher, reason validator, schedule/idle explanation
 ./install.sh      # stops the running app, installs, relaunches via the LaunchAgent
 ```
@@ -60,7 +60,6 @@ than writing the deprecated form.
   the AppleScript call blocked on it, and the sweep never ran again. Now: stable signing,
   a 15s watchdog that abandons a stalled script and logs why, and an explicit permission
   check at startup that surfaces "No Automation permission for X".
-
 - Blocking silently off for a week because a schedule lost Monday. The UI showed on/off by
   tint only, and greyed on-days while locked, which looked identical to off. Now days are
   filled/outlined, each schedule is summarised in words, and the menu and `careful status`
