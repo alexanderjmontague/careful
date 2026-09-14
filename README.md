@@ -139,6 +139,11 @@ careful log [n]                      recent activity
 - **The menu bar icon is an SVG.** `NSImage(contentsOf:)` doesn't load `@2x` variants, so a
   PNG was blurry on Retina displays. The SVG is drawn as a vector.
 - **Reasons are checked with `NSSpellChecker`.** It's already on every Mac.
+- **Browser checks have a 15-second watchdog, and permission is asked for explicitly.**
+  A pending macOS Automation prompt blocks the AppleScript call; without the watchdog that
+  froze the tab sweep forever while status still said blocking was on. Now a stalled check
+  is abandoned and reported, and Careful asks macOS up front whether it may control each
+  running browser.
 
 ## Limitations
 
