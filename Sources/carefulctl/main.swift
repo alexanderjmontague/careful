@@ -75,6 +75,9 @@ case "status":
     let enforcing = state["enforcing"] as? Bool ?? false
     print("Careful:   \(isRunning() ? "running" : "not running")")
     print("Blocking:  \(enforcing ? "yes" : "no")")
+    if !enforcing, let idle = state["idle"] as? String, !idle.isEmpty {
+        print("Why not:   \(idle)")
+    }
     if let reason = state["reason"] as? String, !reason.isEmpty {
         print("Reason:    \(reason)")
     }

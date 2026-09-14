@@ -75,6 +75,7 @@ final class Store: ObservableObject {
         var payload: [String: Any] = [
             "enforcing": enforcing,
             "reason": config.activeReason() ?? "",
+            "idle": config.idleExplanation() ?? "",
             "locked": config.isLocked,
             "blockedApps": config.blockedApps.count,
             "blockedSites": config.blockedSites.count,

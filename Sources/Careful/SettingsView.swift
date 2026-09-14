@@ -236,7 +236,7 @@ private struct SitesTab: View {
 private struct SchedulesTab: View {
     @ObservedObject var store: Store
 
-    private static let dayLabels = ["S", "M", "T", "W", "T", "F", "S"]
+    private static let dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -267,16 +267,27 @@ private struct SchedulesTab: View {
                             .help(locked ? "Locked while a block is running" : "Delete schedule")
                         }
                         HStack(spacing: 4) {
+                            // Filled = on, outlined = off. The old version showed state by
+                            // tint alone and greyed "on" days while locked, which read as
+                            // off — that is how Monday got dropped without anyone noticing.
                             ForEach(1...7, id: \.self) { day in
                                 let on = schedule.weekdays.contains(day)
-                                Button(Self.dayLabels[day - 1]) {
+                                Button {
                                     if on { if !locked { schedule.weekdays.remove(day) } }
                                     else { schedule.weekdays.insert(day) }
+                                } label: {
+                                    Text(Self.dayLabels[day - 1])
+                                        .font(.caption.weight(.semibold))
+                                        .frame(width: 32, height: 22)
+                                        .background(on ? Color.accentColor : Color.clear,
+                                                    in: RoundedRectangle(cornerRadius: 6))
+                                        .overlay(RoundedRectangle(cornerRadius: 6)
+                                            .stroke(on ? Color.accentColor : Color.secondary.opacity(0.4)))
+                                        .foregroundStyle(on ? Color.white : Color.secondary)
                                 }
-                                .buttonStyle(.bordered)
-                                .controlSize(.small)
-                                .tint(on ? .accentColor : .secondary)
-                                .disabled(locked && on)
+                                .buttonStyle(.plain)
+                                .help(locked && on ? "Locked while a block is running"
+                                      : on ? "On — click to remove" : "Off — click to add")
                             }
                             Spacer()
                             // Start may only move earlier and end only later while locked.
@@ -289,6 +300,10 @@ private struct SchedulesTab: View {
                                 set: { schedule.endMinute = locked ? max($0, schedule.endMinute) : $0 }
                             ))
                         }
+                        Text(schedule.enabled
+                             ? "\(schedule.weekdaysDescription), \(schedule.timeDescription)"
+                             : "Off")
+                            .font(.caption).foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 6)
                 }

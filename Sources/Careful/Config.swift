@@ -10,6 +10,37 @@ struct Schedule: Codable, Identifiable, Equatable {
     var startMinute: Int = 9 * 60
     var endMinute: Int = 17 * 60
 
+    /// "Mon–Fri" / "Mon, Wed, Fri" / "Every day" — the days as words, so a schedule can be
+    /// read without decoding seven small buttons.
+    var weekdaysDescription: String {
+        let names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+        let days = weekdays.sorted()
+        if days.count == 7 { return "Every day" }
+        if days == [2, 3, 4, 5, 6] { return "Mon–Fri" }
+        if days == [1, 7] { return "Sat & Sun" }
+        if days.isEmpty { return "No days" }
+        return days.map { names[$0 - 1] }.joined(separator: ", ")
+    }
+
+    var timeDescription: String {
+        func clock(_ m: Int) -> String { String(format: "%02d:%02d", m / 60, m % 60) }
+        return "\(clock(startMinute))–\(clock(endMinute))"
+    }
+
+    /// The next moment this schedule starts, strictly after `date`. nil if it never will.
+    func nextStart(after date: Date, calendar: Calendar = .current) -> Date? {
+        guard enabled, !weekdays.isEmpty else { return nil }
+        let startOfToday = calendar.startOfDay(for: date)
+        for offset in 0...7 {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: startOfToday),
+                  let start = calendar.date(byAdding: .minute, value: startMinute, to: day),
+                  let weekday = calendar.dateComponents([.weekday], from: day).weekday
+            else { continue }
+            if weekdays.contains(weekday) && start > date { return start }
+        }
+        return nil
+    }
+
     func isActive(at date: Date, calendar: Calendar = .current) -> Bool {
         guard enabled else { return false }
         let comps = calendar.dateComponents([.weekday, .hour, .minute], from: date)
@@ -110,6 +141,36 @@ struct Config: Codable {
     func activeReason(at date: Date = Date()) -> String? { blockReason(at: date) }
 
     var isEnforcing: Bool { blockReason() != nil }
+
+    /// Why nothing is blocked right now, in words. This is the answer to "why isn't it
+    /// on?" — before it existed, the only way to find out was to read config.json.
+    func idleExplanation(at date: Date = Date(), calendar: Calendar = .current) -> String? {
+        guard blockReason(at: date) == nil else { return nil }
+        if let suppressed = suppressedUntil, suppressed > date {
+            return "Stopped until \(Self.clock(suppressed, calendar: calendar))"
+        }
+        let enabled = schedules.filter { $0.enabled }
+        if enabled.isEmpty { return "No schedule is enabled" }
+        let upcoming = enabled
+            .compactMap { s in s.nextStart(after: date, calendar: calendar).map { ($0, s) } }
+            .min { $0.0 < $1.0 }
+        guard let (start, schedule) = upcoming else { return "No schedule has any days selected" }
+        let todayIndex = calendar.component(.weekday, from: date)
+        let coversToday = enabled.contains { $0.weekdays.contains(todayIndex) }
+        let clock = Self.clock(start, calendar: calendar)
+        let when = calendar.isDateInToday(start) ? "today \(clock)"
+            : calendar.isDateInTomorrow(start) ? "tomorrow \(clock)"
+            : "\(calendar.shortWeekdaySymbols[calendar.component(.weekday, from: start) - 1]) \(clock)"
+        if !coversToday {
+            return "\(calendar.weekdaySymbols[todayIndex - 1]) isn't in any schedule — next: \(when) (\(schedule.name))"
+        }
+        return "Next: \(when) (\(schedule.name))"
+    }
+
+    private static func clock(_ date: Date, calendar: Calendar) -> String {
+        let c = calendar.dateComponents([.hour, .minute], from: date)
+        return String(format: "%02d:%02d", c.hour ?? 0, c.minute ?? 0)
+    }
 
     /// End of the schedule window covering `date`, used to scope a `stop` to just
     /// this window rather than switching the schedule off for good.

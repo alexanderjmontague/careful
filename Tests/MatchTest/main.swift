@@ -54,5 +54,17 @@ for text in shouldAccept {
     } else { print("  ok      accept  \(text.prefix(40))…") }
 }
 
+// ---- Schedules: the idle explanation must name the gap that bit us (Monday missing) ----
+var cal = Calendar(identifier: .gregorian); cal.locale = Locale(identifier: "en_US"); cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+let monday0927 = cal.date(from: DateComponents(year: 2026, month: 9, day: 14, hour: 9, minute: 27))!
+var sched = Schedule(name: "WeekDAY blocker"); sched.weekdays = [3, 4, 5, 6]; sched.startMinute = 540; sched.endMinute = 1260
+var c2 = Config(); c2.schedules = [sched]
+if sched.isActive(at: monday0927, calendar: cal) { print("  FAIL    Tue–Fri schedule active on Monday"); failures += 1 } else { print("  ok      Tue–Fri schedule inactive on Monday") }
+let why = c2.idleExplanation(at: monday0927, calendar: cal) ?? ""
+if (why.contains("Monday") || why.contains("Mon ")) && why.contains("09:00") { print("  ok      idle explanation: \(why)") } else { print("  FAIL    idle explanation unhelpful: '\(why)'"); failures += 1 }
+sched.weekdays.insert(2); c2.schedules = [sched]
+if sched.isActive(at: monday0927, calendar: cal) { print("  ok      active once Monday added") } else { print("  FAIL    still inactive with Monday"); failures += 1 }
+if sched.weekdaysDescription == "Mon–Fri" { print("  ok      describes as Mon–Fri") } else { print("  FAIL    description: \(sched.weekdaysDescription)"); failures += 1 }
+
 print(failures == 0 ? "\nALL PASS" : "\n\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)
