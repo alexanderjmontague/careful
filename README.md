@@ -150,8 +150,11 @@ careful log [n]                      recent activity
   browser Careful can't script.
 - Up to about 0.6 seconds of a blocked page can show before the redirect.
 - `carefulctl` has no authentication.
-- The app is ad-hoc signed, so macOS asks for Automation permission again after each
-  rebuild.
+- The build is signed with whatever certificate is in your keychain (Developer ID, then
+  Apple Development). With no certificate it falls back to ad-hoc, and macOS will then ask
+  for Automation permission again after every rebuild.
+- If a second copy of a browser is running (an automation or test browser), AppleScript
+  may reach only that one. Careful warns in the menu and in `careful status`.
 - macOS 26 draws a light plate behind app icons that aren't in Icon Composer format. This
   affects most third-party apps.
 

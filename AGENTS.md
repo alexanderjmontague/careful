@@ -32,6 +32,14 @@ regression, not a feature. The old "break" feature was removed for exactly this 
   just quit, forever.
 - **Dia tabs are closed, not redirected.** Dia's `URL` property is documented writable but
   writes are silently ignored.
+- **Keep signing with a real certificate.** `build.sh` picks Developer ID, then Apple
+  Development, then ad-hoc. macOS keys Automation permission to the signing identity;
+  ad-hoc changes it every build, which re-prompts and — worse — a pending prompt used to
+  park the tab sweep forever with status still saying "Blocking: yes". Don't switch back.
+- **A second running copy of a browser hides the first from AppleScript.** Automation
+  tools (test harnesses, agent browsers with `--user-data-dir`) launch extra Chrome
+  processes; Apple Events reach only one. Careful warns about it in the menu and in
+  `careful status`; it cannot route around it.
 - **The menu bar SVG must stay pure black on transparent.** It is loaded as a template
   image; colour in the file breaks tinting.
 
@@ -47,6 +55,11 @@ regression, not a feature. The old "break" feature was removed for exactly this 
 than writing the deprecated form.
 
 ## Things that already went wrong (don't repeat)
+
+- Site blocking silently off for a day: an ad-hoc rebuild triggered a permission prompt,
+  the AppleScript call blocked on it, and the sweep never ran again. Now: stable signing,
+  a 15s watchdog that abandons a stalled script and logs why, and an explicit permission
+  check at startup that surfaces "No Automation permission for X".
 
 - Blocking silently off for a week because a schedule lost Monday. The UI showed on/off by
   tint only, and greyed on-days while locked, which looked identical to off. Now days are
