@@ -9,6 +9,10 @@ final class Store: ObservableObject {
 
     private var commandTimer: Timer?
 
+    /// Runtime problems that stop blocking from working, in words. Set by the enforcer;
+    /// shown in the menu and by `carefulctl status`. Not saved.
+    @Published var warnings: [String] = []
+
     init() {
         self.config = Config.load()
     }
@@ -76,6 +80,7 @@ final class Store: ObservableObject {
             "enforcing": enforcing,
             "reason": config.activeReason() ?? "",
             "idle": config.idleExplanation() ?? "",
+            "warnings": warnings,
             "locked": config.isLocked,
             "blockedApps": config.blockedApps.count,
             "blockedSites": config.blockedSites.count,

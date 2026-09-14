@@ -78,6 +78,7 @@ case "status":
     if !enforcing, let idle = state["idle"] as? String, !idle.isEmpty {
         print("Why not:   \(idle)")
     }
+    for w in state["warnings"] as? [String] ?? [] { print("Warning:   \(w)") }
     if let reason = state["reason"] as? String, !reason.isEmpty {
         print("Reason:    \(reason)")
     }

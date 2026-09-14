@@ -69,6 +69,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let header = NSMenuItem(title: reason ?? "Not blocking", action: nil, keyEquivalent: "")
         header.isEnabled = false
         menu.addItem(header)
+        for warning in store.warnings {
+            let item = NSMenuItem(title: "⚠︎ " + warning, action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.addItem(item)
+        }
         // Say why it's idle. "Not blocking" alone hid a missing weekday for a week.
         if reason == nil, let why = store.config.idleExplanation() {
             let item = NSMenuItem(title: why, action: nil, keyEquivalent: "")

@@ -60,13 +60,25 @@ swiftc -O -swift-version 5 \
   "$ROOT"/Sources/carefulctl/main.swift
 
 echo "==> Signing"
-# Ad-hoc signing is enough for a locally built app; it does mean macOS re-asks for
-# Automation permission after each rebuild, since the code signature changes.
-codesign --force --deep --sign - \
+# macOS ties Automation permission to the signing identity. Ad-hoc signing changes identity
+# on every build, so every rebuild re-prompted for Chrome, Dia, etc. — and a pending prompt
+# stalls the whole tab sweep. Prefer a real certificate from the keychain (identity is then
+# stable across builds and permission is granted once); fall back to ad-hoc for machines
+# without one.
+# Developer ID first (valid for years); Apple Development as a fallback (renews yearly).
+IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null | grep -oE '"Developer ID Application[^"]*"' | head -1 | tr -d '"')
+[ -n "$IDENTITY" ] || IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null | grep -oE '"Apple Development[^"]*"' | head -1 | tr -d '"')
+if [ -n "$IDENTITY" ]; then
+  echo "    identity: $IDENTITY"
+else
+  echo "    identity: ad-hoc (no certificate found; Automation permission will re-prompt after rebuilds)"
+  IDENTITY="-"
+fi
+codesign --force --deep --sign "$IDENTITY" \
   --identifier "$BUNDLE_ID" \
   --options runtime \
   --entitlements "$ROOT/Careful.entitlements" \
   "$APP"
-codesign --force --sign - "$BUILD/carefulctl"
+codesign --force --sign "$IDENTITY" "$BUILD/carefulctl"
 
 echo "==> Built $APP"
