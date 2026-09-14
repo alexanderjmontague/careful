@@ -40,7 +40,8 @@ because im tired` gets rejected, so does `als;djaskdj`.
 - **Website blocking inside the browser.** Careful watches open tabs in Chrome, Dia, Arc,
   Brave, Edge, Comet, Vivaldi, Opera and Safari, and redirects blocked pages to a local
   block screen. The tab stays open.
-- **Schedules.** Pick hours and weekdays. There's also a one-off timer.
+- **Schedules.** Pick hours and weekdays, in local time. There's also a one-off timer. When
+  nothing is blocked, the menu says why and when the next block starts.
 - **Hard to quit.** No Dock icon, no ⌘Q, not listed in Force Quit. If the process is
   killed, launchd restarts it within a couple of seconds. While a block is running you can
   add to the lists and schedules but not remove from them.
@@ -64,7 +65,8 @@ cd careful
 ```
 
 This installs `Careful.app`, the `carefulctl` tool (aliased as `careful`), and a LaunchAgent
-that starts it at login. It shows up as a hand icon in the menu bar.
+that starts it at login. It shows up as a hand icon in the menu bar,
+dimmed while nothing is blocked.
 
 The first time a site is blocked in a given browser, macOS will ask for permission to
 control that browser. Allow it under **System Settings → Privacy & Security → Automation**.
