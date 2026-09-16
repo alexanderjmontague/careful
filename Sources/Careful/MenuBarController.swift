@@ -190,7 +190,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     private func makePasteField() -> NSView {
         let container = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 30))
-        let field = NSTextField(frame: NSRect(x: 14, y: 4, width: 272, height: 22))
+        let field = PasteableTextField(frame: NSRect(x: 14, y: 4, width: 272, height: 22))
         field.placeholderString = "Paste an exact URL to allow for 24 hours"
         field.font = .systemFont(ofSize: NSFont.systemFontSize)
         field.bezelStyle = .roundedBezel
@@ -265,5 +265,27 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         settingsWindow = window
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+}
+
+
+/// A text field that handles the clipboard shortcuts itself. Inside an open NSMenu the
+/// normal key-equivalent path is unreliable, so this is the fallback if the Edit menu
+/// route doesn't fire.
+final class PasteableTextField: NSTextField {
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
+              let key = event.charactersIgnoringModifiers?.lowercased() else {
+            return super.performKeyEquivalent(with: event)
+        }
+        let selector: Selector
+        switch key {
+        case "v": selector = #selector(NSText.paste(_:))
+        case "c": selector = #selector(NSText.copy(_:))
+        case "x": selector = #selector(NSText.cut(_:))
+        case "a": selector = #selector(NSText.selectAll(_:))
+        default: return super.performKeyEquivalent(with: event)
+        }
+        return NSApp.sendAction(selector, to: nil, from: self)
     }
 }
