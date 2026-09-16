@@ -44,6 +44,9 @@ regression, not a feature. The old "break" feature was removed for exactly this 
   tools (test harnesses, agent browsers with `--user-data-dir`) launch extra Chrome
   processes; Apple Events reach only one. Careful warns about it in the menu and in
   `careful status`; it cannot route around it.
+- **The app builds a hidden Edit menu at launch.** It has no menu bar, and macOS routes
+  ⌘V/⌘C/⌘X/⌘A through Edit-menu items — without one, paste silently does nothing in every
+  text field (the status-menu URL box, the Unlock reason box). Don't remove it.
 - **The menu bar SVG must stay pure black on transparent.** It is loaded as a template
   image; colour in the file breaks tinting.
 
