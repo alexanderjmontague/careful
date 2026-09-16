@@ -143,9 +143,24 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
         // Exact-URL allowances: a paste field, then one row per allowed page with time left.
         menu.addItem(.separator())
-        let pasteItem = NSMenuItem()
-        pasteItem.view = makePasteField()
-        menu.addItem(pasteItem)
+        // A text field inside a menu never reliably gets paste or right-click — menus
+        // intercept those events. So: read the clipboard and offer it as one click.
+        let clip = NSPasteboard.general.string(forType: .string)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if let parts = URLAllowance.normalize(clip), parts.host.contains("."), !clip.contains(" ") {
+            let shown = clip.count > 60 ? String(clip.prefix(57)) + "…" : clip
+            let item = NSMenuItem(title: "Allow \(shown) for 24 hours", action: #selector(allowClipboard), keyEquivalent: "")
+            item.target = self
+            item.toolTip = "From your clipboard. Only this exact page; other pages on the site stay blocked."
+            menu.addItem(item)
+        } else {
+            let hint = NSMenuItem(title: "Copy a URL, then open this menu to allow it", action: nil, keyEquivalent: "")
+            hint.isEnabled = false
+            menu.addItem(hint)
+        }
+        let other = NSMenuItem(title: "Allow a different page…", action: #selector(openAllowWindow), keyEquivalent: "")
+        other.target = self
+        menu.addItem(other)
         for allowance in store.config.allowedURLs where allowance.isActive() {
             let left = Format.duration(Int(allowance.expiresAt.timeIntervalSinceNow))
             let row = NSMenuItem(title: "✓ \(allowance.original) — \(left) left",
@@ -184,42 +199,16 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         refreshButton()
     }
 
-    // MARK: - Exact-URL paste field
+    // MARK: - Exact-URL allowances
 
-    private var pasteField: NSTextField?
-
-    private func makePasteField() -> NSView {
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 30))
-        let field = PasteableTextField(frame: NSRect(x: 14, y: 4, width: 272, height: 22))
-        field.placeholderString = "Paste an exact URL to allow for 24 hours"
-        field.font = .systemFont(ofSize: NSFont.systemFontSize)
-        field.bezelStyle = .roundedBezel
-        field.target = self
-        field.action = #selector(pasteFieldSubmitted(_:))
-        field.autoresizingMask = [.width]
-        container.addSubview(field)
-        pasteField = field
-        return container
+    @objc private func allowClipboard() {
+        let clip = NSPasteboard.general.string(forType: .string)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if store.allow(url: clip) == nil { NSSound.beep() }
     }
 
-    func menuWillOpen(_ menu: NSMenu) {
-        // Focus the field so ⌘V + Return works without clicking first.
-        DispatchQueue.main.async { [weak self] in
-            guard let field = self?.pasteField else { return }
-            field.window?.makeFirstResponder(field)
-        }
-    }
-
-    @objc private func pasteFieldSubmitted(_ sender: NSTextField) {
-        let text = sender.stringValue
-        guard !text.isEmpty else { return }
-        if store.allow(url: text) != nil {
-            sender.stringValue = ""
-            statusItem.menu?.cancelTracking()
-        } else {
-            NSSound.beep()
-            sender.placeholderString = "That doesn't look like a URL"
-        }
+    @objc private func openAllowWindow() {
+        AllowWindowController.shared.show(store: store)
     }
 
     @objc private func disallow(_ sender: NSMenuItem) {
@@ -269,23 +258,61 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 }
 
 
-/// A text field that handles the clipboard shortcuts itself. Inside an open NSMenu the
-/// normal key-equivalent path is unreliable, so this is the fallback if the Edit menu
-/// route doesn't fire.
-final class PasteableTextField: NSTextField {
-    override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        guard event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
-              let key = event.charactersIgnoringModifiers?.lowercased() else {
-            return super.performKeyEquivalent(with: event)
-        }
-        let selector: Selector
-        switch key {
-        case "v": selector = #selector(NSText.paste(_:))
-        case "c": selector = #selector(NSText.copy(_:))
-        case "x": selector = #selector(NSText.cut(_:))
-        case "a": selector = #selector(NSText.selectAll(_:))
-        default: return super.performKeyEquivalent(with: event)
-        }
-        return NSApp.sendAction(selector, to: nil, from: self)
+
+/// A small window for typing or pasting a page to allow. Lives outside the menu on
+/// purpose: a text field inside a menu never reliably receives paste or right-click.
+final class AllowWindowController: NSObject, NSTextFieldDelegate {
+    static let shared = AllowWindowController()
+    private var window: NSWindow?
+    private var field: NSTextField?
+    private var store: Store?
+
+    func show(store: Store) {
+        self.store = store
+        if window == nil { build() }
+        field?.stringValue = ""
+        window?.center()
+        window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        window?.makeFirstResponder(field)
     }
+
+    private func build() {
+        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 118),
+                         styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        w.title = "Allow one page"
+        w.isReleasedWhenClosed = false
+        let content = NSView(frame: w.contentView!.bounds)
+
+        let label = NSTextField(labelWithString: "Paste the exact page to allow for 24 hours. Other pages on the site stay blocked.")
+        label.frame = NSRect(x: 20, y: 80, width: 400, height: 20)
+        label.font = .systemFont(ofSize: 12); label.textColor = .secondaryLabelColor
+        content.addSubview(label)
+
+        let f = NSTextField(frame: NSRect(x: 20, y: 48, width: 400, height: 24))
+        f.placeholderString = "https://…"
+        f.delegate = self
+        f.target = self; f.action = #selector(submit)
+        content.addSubview(f); field = f
+
+        let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancel)); cancel.keyEquivalent = "\u{1b}"
+        cancel.frame = NSRect(x: 250, y: 10, width: 80, height: 28)
+        let allow = NSButton(title: "Allow", target: self, action: #selector(submit)); allow.keyEquivalent = "\r"
+        allow.frame = NSRect(x: 340, y: 10, width: 80, height: 28)
+        content.addSubview(cancel); content.addSubview(allow)
+        w.contentView = content
+        window = w
+    }
+
+    @objc private func submit() {
+        guard let store, let field else { return }
+        if store.allow(url: field.stringValue) != nil {
+            window?.orderOut(nil)
+        } else {
+            NSSound.beep()
+            field.placeholderString = "That doesn't look like a URL"
+        }
+    }
+
+    @objc private func cancel() { window?.orderOut(nil) }
 }

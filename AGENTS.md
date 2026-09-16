@@ -45,8 +45,13 @@ regression, not a feature. The old "break" feature was removed for exactly this 
   processes; Apple Events reach only one. Careful warns about it in the menu and in
   `careful status`; it cannot route around it.
 - **The app builds a hidden Edit menu at launch.** It has no menu bar, and macOS routes
-  ⌘V/⌘C/⌘X/⌘A through Edit-menu items — without one, paste silently does nothing in every
-  text field (the status-menu URL box, the Unlock reason box). Don't remove it.
+  ⌘V/⌘C/⌘X/⌘A through Edit-menu items — without one, paste silently does nothing in any
+  text field (the Allow-one-page window, the Unlock reason box). Don't remove it.
+- **No text fields inside the status menu.** A menu intercepts mouse and keyboard events,
+  so an `NSTextField` in an `NSMenuItem.view` never gets right-click and only sometimes gets
+  paste. The URL allowance was first built that way and looked fine but couldn't be used.
+  Input goes in a real window (`AllowWindowController`); the menu reads the clipboard and
+  offers the copied URL as a one-click item instead.
 - **The menu bar SVG must stay pure black on transparent.** It is loaded as a template
   image; colour in the file breaks tinting.
 
