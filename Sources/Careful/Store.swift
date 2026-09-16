@@ -50,6 +50,31 @@ final class Store: ObservableObject {
         vlog("unlocked \(displayName) for \(minutes)m — \(reason)")
     }
 
+    /// Allow one exact page through for `hours`. Returns nil if the text is not a URL.
+    /// Logged like an unlock so it shows up in Settings → Log.
+    @discardableResult
+    func allow(url raw: String, hours: Double = 24) -> URLAllowance? {
+        guard let parts = URLAllowance.normalize(raw), !parts.host.isEmpty, parts.host.contains(".") else { return nil }
+        let entry = URLAllowance(original: raw.trimmingCharacters(in: .whitespacesAndNewlines),
+                                 expiresAt: Date().addingTimeInterval(hours * 3600))
+        config.allowedURLs.removeAll { URLAllowance.normalize($0.original) == parts }
+        config.allowedURLs.append(entry)
+        UnlockLog.append(UnlockEntry(kind: .site, target: entry.original, displayName: entry.original,
+                                     minutes: Int(hours * 60), reason: "exact page allowed from the menu bar",
+                                     startedAt: Date(), endsAt: entry.expiresAt))
+        vlog("allowed exact URL \(entry.original) for \(Int(hours))h")
+        return entry
+    }
+
+    func disallow(id: UUID) {
+        config.allowedURLs.removeAll { $0.id == id }
+    }
+
+    func disallow(url raw: String) {
+        let parts = URLAllowance.normalize(raw)
+        config.allowedURLs.removeAll { URLAllowance.normalize($0.original) == parts }
+    }
+
     /// End an unlock early. Matches on target so both the UI and the CLI can use it.
     func relock(target: String) {
         let before = config.activeUnlocks.count
@@ -89,7 +114,10 @@ final class Store: ObservableObject {
             "updated": ISO8601DateFormatter().string(from: Date()),
         ]
         // Expired unlocks are dropped here because this runs every second anyway.
-        if config.pruneUnlocks() { config.save() }
+        if config.pruneUnlocks() || config.pruneAllowances() { config.save() }
+        payload["allowed"] = config.allowedURLs.map { a -> [String: Any] in
+            ["url": a.original, "secondsRemaining": Int(a.expiresAt.timeIntervalSinceNow)]
+        }
         payload["unlocks"] = config.activeUnlocks.map { entry -> [String: Any] in
             ["kind": entry.kind.rawValue, "target": entry.target, "name": entry.displayName,
              "secondsRemaining": Int(entry.endsAt.timeIntervalSinceNow), "reason": entry.reason]
@@ -154,6 +182,13 @@ final class Store: ObservableObject {
                 unlock(kind: kind, target: target, displayName: name, minutes: minutes, reason: reason)
             case "relock":
                 if parts.count > 1 { relock(target: parts[1]) }
+            case "allow":
+                // allow <url> [hours]
+                guard parts.count > 1 else { break }
+                let hours = parts.count > 2 ? (Double(parts[2]) ?? 24) : 24
+                if allow(url: parts[1], hours: hours) == nil { vlog("carefulctl: allow — not a URL: \(parts[1])") }
+            case "disallow":
+                if parts.count > 1 { disallow(url: parts[1]) }
             case "set":
                 guard parts.count > 2 else { break }
                 switch parts[1].lowercased() {

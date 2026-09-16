@@ -20,6 +20,10 @@ regression, not a feature. The old "break" feature was removed for exactly this 
 - **The reason gate stays strict.** 40+ characters, 6+ words, mostly dictionary words, no
   repetition. `ReasonValidator` has tests; extend them before loosening anything.
 - **The unlock log is append-only.** No clear button, no edit.
+- **An exact-page allowance is one page, never a site.** `URLAllowance.matches` compares
+  host and path; the query counts only when the pasted URL had one. Don't widen it to
+  prefixes or domains — that would quietly turn it back into a site unlock without a
+  reason. Cases are in `Tests/MatchTest`.
 - **Never hand-edit `~/Library/Application Support/Careful/config.json` while the app is
   running.** The app rewrites it constantly and the edit will be lost. Use `carefulctl`, or
   stop the app first (`careful quit`), edit, then `./install.sh`.

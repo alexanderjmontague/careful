@@ -39,24 +39,29 @@ func isRunning() -> Bool {
 }
 
 let usage = """
-carefulctl — control Careful
+careful — control Careful
 
-  carefulctl status              show whether a block is running
-  carefulctl start <minutes>     start a timed block
-  carefulctl stop                end the current block (works even when locked)
-  carefulctl always on|off       toggle the open-ended block
-  carefulctl break               take a break, if one is due
-  carefulctl break end           end the current break early
-  carefulctl block <domain>      add a website to the blocklist
-  carefulctl unblock <domain>    remove a website from the blocklist
-  carefulctl block-app <id>      add an app by bundle identifier
-  carefulctl unblock-app <id>    remove an app by bundle identifier
-  carefulctl list                show the current blocklists
-  carefulctl set <key> <value>   break-minutes | break-interval | strict on|off
-  carefulctl reload              re-read config.json from disk
-  carefulctl quit                stop the block, unload the agent, and quit the app
-  carefulctl launch              load the agent and start the app again
-  carefulctl log [n]             show the last n log lines (default 40)
+  careful status                     what's blocked, what's running, time left, warnings
+  careful unlock app|site <target> <min> [reason]
+                                     unlock one thing (no reason check — this is the escape hatch)
+  careful relock <target>            end an unlock early
+  careful unlocks                    list active unlocks
+  careful allow <url> [hours]        allow one exact page through the block (default 24h)
+  careful disallow <url>             stop allowing it
+  careful allowed                    list allowed pages and time left
+  careful start <minutes>            start a timed block
+  careful stop                       stand down for the rest of the current window
+  careful resume                     re-enable all schedules
+  careful always on|off              open-ended block
+  careful block <domain> / unblock <domain>
+  careful block-app <id> / unblock-app <id>
+  careful list                       show both blocklists
+  careful set strict on|off
+  careful settings                   open the Settings window
+  careful reload                     re-read config.json from disk
+  careful quit                       stop the block, unload the agent, quit the app
+  careful launch                     start it again
+  careful log [n]                    recent activity
 """
 
 let args = Array(CommandLine.arguments.dropFirst())
@@ -79,6 +84,9 @@ case "status":
         print("Why not:   \(idle)")
     }
     for w in state["warnings"] as? [String] ?? [] { print("Warning:   \(w)") }
+    if let allowed = state["allowed"] as? [[String: Any]], !allowed.isEmpty {
+        print("Allowed:   " + allowed.compactMap { $0["url"] as? String }.joined(separator: ", "))
+    }
     if let reason = state["reason"] as? String, !reason.isEmpty {
         print("Reason:    \(reason)")
     }
@@ -122,6 +130,25 @@ case "relock":
     guard args.count > 1 else { print("usage: careful relock <bundle-id|domain>"); exit(1) }
     send("relock \(args[1])")
     print("Careful: relocked \(args[1]).")
+
+case "allow":
+    guard args.count > 1 else { print("usage: careful allow <url> [hours]"); exit(1) }
+    send("allow " + args[1...].joined(separator: " "))
+    print("Careful: allowing \(args[1]) for \(args.count > 2 ? args[2] : "24") hours — that exact page only.")
+
+case "disallow":
+    guard args.count > 1 else { print("usage: careful disallow <url>"); exit(1) }
+    send("disallow \(args[1])")
+    print("Careful: no longer allowing \(args[1]).")
+
+case "allowed":
+    let state = readState()
+    let list = state["allowed"] as? [[String: Any]] ?? []
+    if list.isEmpty { print("No pages allowed.") }
+    for a in list {
+        let secs = a["secondsRemaining"] as? Int ?? 0
+        print("  \(a["url"] ?? "?")  \(secs / 3600)h \((secs % 3600) / 60)m left")
+    }
 
 case "unlocks":
     let state = readState()

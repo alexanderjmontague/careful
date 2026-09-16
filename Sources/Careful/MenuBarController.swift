@@ -141,6 +141,21 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             }
         }
 
+        // Exact-URL allowances: a paste field, then one row per allowed page with time left.
+        menu.addItem(.separator())
+        let pasteItem = NSMenuItem()
+        pasteItem.view = makePasteField()
+        menu.addItem(pasteItem)
+        for allowance in store.config.allowedURLs where allowance.isActive() {
+            let left = Format.duration(Int(allowance.expiresAt.timeIntervalSinceNow))
+            let row = NSMenuItem(title: "✓ \(allowance.original) — \(left) left",
+                                 action: #selector(disallow(_:)), keyEquivalent: "")
+            row.target = self
+            row.representedObject = allowance.id
+            row.toolTip = "Click to stop allowing this page"
+            menu.addItem(row)
+        }
+
         menu.addItem(.separator())
         let settings = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settings.target = self
@@ -167,6 +182,49 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             store.config.alwaysOn = true
         }
         refreshButton()
+    }
+
+    // MARK: - Exact-URL paste field
+
+    private var pasteField: NSTextField?
+
+    private func makePasteField() -> NSView {
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 30))
+        let field = NSTextField(frame: NSRect(x: 14, y: 4, width: 272, height: 22))
+        field.placeholderString = "Paste an exact URL to allow for 24 hours"
+        field.font = .systemFont(ofSize: NSFont.systemFontSize)
+        field.bezelStyle = .roundedBezel
+        field.target = self
+        field.action = #selector(pasteFieldSubmitted(_:))
+        field.autoresizingMask = [.width]
+        container.addSubview(field)
+        pasteField = field
+        return container
+    }
+
+    func menuWillOpen(_ menu: NSMenu) {
+        // Focus the field so ⌘V + Return works without clicking first.
+        DispatchQueue.main.async { [weak self] in
+            guard let field = self?.pasteField else { return }
+            field.window?.makeFirstResponder(field)
+        }
+    }
+
+    @objc private func pasteFieldSubmitted(_ sender: NSTextField) {
+        let text = sender.stringValue
+        guard !text.isEmpty else { return }
+        if store.allow(url: text) != nil {
+            sender.stringValue = ""
+            statusItem.menu?.cancelTracking()
+        } else {
+            NSSound.beep()
+            sender.placeholderString = "That doesn't look like a URL"
+        }
+    }
+
+    @objc private func disallow(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? UUID else { return }
+        store.disallow(id: id)
     }
 
     @objc private func openUnlock() {

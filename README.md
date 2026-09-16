@@ -45,6 +45,11 @@ because im tired` gets rejected, so does `als;djaskdj`.
 - **Hard to quit.** No Dock icon, no ⌘Q, not listed in Force Quit. If the process is
   killed, launchd restarts it within a couple of seconds. While a block is running you can
   add to the lists and schedules but not remove from them.
+- **Exact-page allowances.** Paste a URL into the field at the bottom of the menu and that
+  one page is allowed through for 24 hours — the home page of `youtube.com`, or one specific
+  LinkedIn profile. Any other page on the site stays blocked, including links you follow from
+  the allowed one. Each page has to be pasted in on its own. The menu lists what's allowed
+  and how long is left; click an entry to end it early.
 - **A command line tool** that can do anything, including end a block. See below.
 
 <p align="center">
@@ -86,6 +91,12 @@ fire any system notification. A plain domain matches that host and its subdomain
 nothing else (`x.com` matches `mobile.x.com` but not `dropbox.com`). Rules containing a path
 or query are matched as substrings.
 
+**Allowed pages.** "Exact" means the same host (ignoring `www.` and the scheme) and the same
+path. The query string only counts if the pasted URL had one, because sites such as LinkedIn
+add tracking parameters on arrival and an allowance that broke on `?trk=` would be useless.
+So `youtube.com` allows the home page but not `/watch?v=…`, and `youtube.com/watch?v=A`
+does not allow `?v=B`.
+
 **Unlocks.** An unlock is one app or one site rule plus an expiry time. The enforcer skips
 unlocked items on every pass, so unlocking one app doesn't affect the others. Expired
 unlocks are removed automatically. Each one is appended to `unlock-log.json` and shown
@@ -102,6 +113,9 @@ careful status                       what's blocked, what's running, time left
 careful unlock app|site <target> <min> [reason]
 careful relock <target>              end an unlock early
 careful unlocks                      list active unlocks
+careful allow <url> [hours]          allow one exact page (default 24h)
+careful disallow <url>               stop allowing it
+careful allowed                      list allowed pages and time left
 careful start <minutes>              start a timed block
 careful stop                         stand down for the rest of the current window
 careful resume                       re-enable all schedules

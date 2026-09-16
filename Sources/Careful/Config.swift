@@ -76,6 +76,8 @@ struct Config: Codable {
     /// Temporary exceptions, one app or site each. Replaced the old "break" feature,
     /// which opened everything at once — unlocking one thing keeps the rest blocked.
     var activeUnlocks: [UnlockEntry] = []
+    /// Exact pages pasted in from the menu bar. See URLAllowance.
+    var allowedURLs: [URLAllowance] = []
 
     // Synthesized Codable throws on a MISSING key even when the property has a default,
     // so adding any new field would wipe the user's config on next launch. This init
@@ -93,6 +95,7 @@ struct Config: Codable {
         alwaysOn        = try c.decodeIfPresent(Bool.self,          forKey: .alwaysOn)        ?? false
         strictMode      = try c.decodeIfPresent(Bool.self,          forKey: .strictMode)      ?? true
         activeUnlocks   = try c.decodeIfPresent([UnlockEntry].self, forKey: .activeUnlocks)   ?? []
+        allowedURLs     = try c.decodeIfPresent([URLAllowance].self, forKey: .allowedURLs)   ?? []
     }
 
     static func load() -> Config {
@@ -213,7 +216,20 @@ struct Config: Codable {
     /// unlocked. Checking the unlock here means every caller inherits it for free.
     func matchedSite(for url: String, at date: Date = Date()) -> String? {
         guard let rule = matchedRule(for: url) else { return nil }
+        if isAllowed(url: url, at: date) { return nil }
         return isUnlocked(site: rule, at: date) ? nil : rule
+    }
+
+    /// An exact-URL allowance lets one page through the block, and only that page.
+    func isAllowed(url: String, at date: Date = Date()) -> Bool {
+        allowedURLs.contains { $0.isActive(at: date) && $0.matches(url) }
+    }
+
+    @discardableResult
+    mutating func pruneAllowances(at date: Date = Date()) -> Bool {
+        let before = allowedURLs.count
+        allowedURLs.removeAll { !$0.isActive(at: date) }
+        return allowedURLs.count != before
     }
 
     private func matchedRule(for url: String) -> String? {

@@ -138,3 +138,40 @@ enum UnlockLog {
         try? data.write(to: file, options: .atomic)
     }
 }
+
+// MARK: - Exact-URL allowances
+
+/// One exact page allowed through the block for a while. Deliberately narrower than a site
+/// unlock: `youtube.com` lets the home page through and nothing else, so following a link
+/// from it still hits the block. Each page has to be pasted in on its own.
+struct URLAllowance: Codable, Identifiable, Equatable {
+    var id = UUID()
+    /// What the user pasted, for display.
+    var original: String
+    var expiresAt: Date
+
+    func isActive(at date: Date = Date()) -> Bool { expiresAt > date }
+
+    /// Exact means: same host (ignoring `www.` and scheme) and same path. The query
+    /// string counts only if the pasted URL had one — sites like LinkedIn append tracking
+    /// parameters on arrival, and an allowance that broke on `?trk=` would be useless.
+    /// Fragments never count.
+    func matches(_ url: String) -> Bool {
+        guard let a = Self.normalize(original), let b = Self.normalize(url) else { return false }
+        if a.host != b.host || a.path != b.path { return false }
+        return a.query == nil || a.query == b.query
+    }
+
+    struct Parts: Equatable { let host: String; let path: String; let query: String? }
+
+    static func normalize(_ raw: String) -> Parts? {
+        var text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !text.contains("://") { text = "https://" + text }
+        guard let url = URL(string: text), var host = url.host?.lowercased() else { return nil }
+        if host.hasPrefix("www.") { host = String(host.dropFirst(4)) }
+        var path = url.path
+        while path.hasSuffix("/") { path.removeLast() }
+        let query = url.query.flatMap { $0.isEmpty ? nil : $0 }
+        return Parts(host: host, path: path, query: query)
+    }
+}
