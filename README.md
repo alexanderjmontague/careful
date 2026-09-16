@@ -45,11 +45,11 @@ because im tired` gets rejected, so does `als;djaskdj`.
 - **Hard to quit.** No Dock icon, no ⌘Q, not listed in Force Quit. If the process is
   killed, launchd restarts it within a couple of seconds. While a block is running you can
   add to the lists and schedules but not remove from them.
-- **Exact-page allowances.** Copy a URL, open the menu, and it offers "Allow <that URL> for
-  24 hours". One click and that page is allowed through — the home page of `youtube.com`, or
+- **Exact-page allowances.** "Allow one page for 24 hours…" in the menu opens a small
+  window; paste a URL and that page is allowed through — the home page of `youtube.com`, or
   one specific LinkedIn profile. Any other page on the site stays blocked, including links
-  you follow from the allowed one. There's also "Allow a different page…" to type one in. The
-  menu lists what's allowed and how long is left; click an entry to end it early.
+  you follow from the allowed one. The menu lists each page that's allowed right now and how
+  long is left; click an entry to end it early. Expired pages disappear.
 - **A command line tool** that can do anything, including end a block. See below.
 
 <p align="center">

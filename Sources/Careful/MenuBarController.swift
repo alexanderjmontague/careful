@@ -141,26 +141,12 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             }
         }
 
-        // Exact-URL allowances: a paste field, then one row per allowed page with time left.
-        menu.addItem(.separator())
-        // A text field inside a menu never reliably gets paste or right-click — menus
-        // intercept those events. So: read the clipboard and offer it as one click.
-        let clip = NSPasteboard.general.string(forType: .string)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if let parts = URLAllowance.normalize(clip), parts.host.contains("."), !clip.contains(" ") {
-            let shown = clip.count > 60 ? String(clip.prefix(57)) + "…" : clip
-            let item = NSMenuItem(title: "Allow \(shown) for 24 hours", action: #selector(allowClipboard), keyEquivalent: "")
-            item.target = self
-            item.toolTip = "From your clipboard. Only this exact page; other pages on the site stay blocked."
-            menu.addItem(item)
-        } else {
-            let hint = NSMenuItem(title: "Copy a URL, then open this menu to allow it", action: nil, keyEquivalent: "")
-            hint.isEnabled = false
-            menu.addItem(hint)
-        }
-        let other = NSMenuItem(title: "Allow a different page…", action: #selector(openAllowWindow), keyEquivalent: "")
-        other.target = self
-        menu.addItem(other)
+        // Exact-URL allowances: one item to add a page (opens a window — text fields
+        // inside a menu don't get paste or right-click), then one row per page that is
+        // allowed right now, with time left. Expired pages never show here.
+        let addPage = NSMenuItem(title: "Allow one page for 24 hours…", action: #selector(openAllowWindow), keyEquivalent: "")
+        addPage.target = self
+        menu.addItem(addPage)
         for allowance in store.config.allowedURLs where allowance.isActive() {
             let left = Format.duration(Int(allowance.expiresAt.timeIntervalSinceNow))
             let row = NSMenuItem(title: "✓ \(allowance.original) — \(left) left",
@@ -200,12 +186,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     // MARK: - Exact-URL allowances
-
-    @objc private func allowClipboard() {
-        let clip = NSPasteboard.general.string(forType: .string)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if store.allow(url: clip) == nil { NSSound.beep() }
-    }
 
     @objc private func openAllowWindow() {
         AllowWindowController.shared.show(store: store)

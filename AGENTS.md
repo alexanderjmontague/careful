@@ -50,8 +50,8 @@ regression, not a feature. The old "break" feature was removed for exactly this 
 - **No text fields inside the status menu.** A menu intercepts mouse and keyboard events,
   so an `NSTextField` in an `NSMenuItem.view` never gets right-click and only sometimes gets
   paste. The URL allowance was first built that way and looked fine but couldn't be used.
-  Input goes in a real window (`AllowWindowController`); the menu reads the clipboard and
-  offers the copied URL as a one-click item instead.
+  Input goes in a real window (`AllowWindowController`). The menu itself shows only the
+  pages allowed right now, each with time left; expired ones are never listed.
 - **The menu bar SVG must stay pure black on transparent.** It is loaded as a template
   image; colour in the file breaks tinting.
 
