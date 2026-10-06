@@ -188,6 +188,7 @@ final class Enforcer: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 15) { [weak self] in
             guard let self, self.scriptBusy, self.sweepGeneration == generation else { return }
             self.scriptBusy = false
+            AppleScriptRunner.resetCache()
             self.scriptQueue = DispatchQueue(label: "com.alexandermontague.careful.applescript.\(generation)", qos: .utility)
             self.note("Browser check stalled — usually a pending Automation permission prompt. Approve it under System Settings → Privacy & Security → Automation.")
             self.checkPermissions(for: targets)

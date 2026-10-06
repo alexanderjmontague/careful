@@ -2,10 +2,30 @@ import Foundation
 
 enum AppleScriptRunner {
     /// NSAppleScript must be compiled and run on one thread; the enforcer owns a serial queue for it.
+    /// Compiling an NSAppleScript leaks ~2 KB that no autorelease pool reclaims. The tab
+    /// sweep runs every 0.6s, so compiling each time grew the app to 8 GB over 20 days.
+    /// Scripts whose source never changes (the tab listings) are compiled once and reused.
+    private static var compiled: [String: NSAppleScript] = [:]
+    private static let lock = NSLock()
+
+    /// Called when the watchdog abandons a stalled run: the stalled script may still be
+    /// executing, so later runs must not share its instance.
+    static func resetCache() { lock.lock(); compiled.removeAll(); lock.unlock() }
+
     @discardableResult
-    static func run(_ source: String) -> String? {
+    static func run(_ source: String, reuse: Bool = false) -> String? {
         var error: NSDictionary?
-        guard let script = NSAppleScript(source: source) else { return nil }
+        let script: NSAppleScript
+        if reuse {
+            lock.lock()
+            if let cached = compiled[source] { script = cached }
+            else if let fresh = NSAppleScript(source: source) { compiled[source] = fresh; script = fresh }
+            else { lock.unlock(); return nil }
+            lock.unlock()
+        } else {
+            guard let fresh = NSAppleScript(source: source) else { return nil }
+            script = fresh
+        }
         let result = script.executeAndReturnError(&error)
         if let error {
             let code = error[NSAppleScript.errorNumber] as? Int ?? 0
@@ -68,7 +88,7 @@ struct ChromiumBrowser: Browser {
         end if
         return out
         """
-        return TabParser.parse(AppleScriptRunner.run(source))
+        return TabParser.parse(AppleScriptRunner.run(source, reuse: true))
     }
 
     func redirect(_ ref: TabRef, to destination: String) {
@@ -128,7 +148,7 @@ struct SafariBrowser: Browser {
         end if
         return out
         """
-        return TabParser.parse(AppleScriptRunner.run(source))
+        return TabParser.parse(AppleScriptRunner.run(source, reuse: true))
     }
 
     func redirect(_ ref: TabRef, to destination: String) {
